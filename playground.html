@@ -1,0 +1,1147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta http-equiv="Cache-Control" content="no-cache,no-store,must-revalidate"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Genesis Playground</title>
+  <meta name="theme-color" content="#1a1a2e"/>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Inter:wght@300;400;500;600&display=swap');
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{
+      --bg-base:#0f0f17;--bg-sidebar:#15151f;--bg-tabs:#11111a;--bg-editor:#0d0d14;
+      --bg-hover:#1e1e2e;--bg-active:#252535;
+      --accent:#7c6af7;--accent-soft:#5c4fd6;--accent-glow:rgba(124,106,247,0.18);
+      --text-primary:#e2e2f0;--text-secondary:#8888aa;--text-dim:#55556a;
+      --border:#1e1e2e;--border-light:#252540;--tab-active-bg:#0d0d14;
+      --danger:#f87171;--success:#34d399;--warn:#fbbf24;--cyan:#22d3ee;
+      --sidebar-w:240px;--tab-h:38px;--header-h:44px;--statusbar-h:24px;
+      font-size:13px;
+    }
+    html,body{height:100%;overflow:hidden;background:var(--bg-base);color:var(--text-primary);font-family:'Inter',sans-serif}
+    #app{display:flex;flex-direction:column;height:100vh;height:100dvh}
+
+    /* ── HEADER (y chang editor) ── */
+    #header{height:var(--header-h);background:var(--bg-sidebar);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 8px;gap:6px;flex-shrink:0;z-index:100;user-select:none}
+    #btn-hamburger{width:34px;height:34px;border-radius:7px;border:none;background:transparent;color:var(--text-secondary);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .15s,color .15s;flex-shrink:0}
+    #btn-hamburger:hover,#btn-hamburger.active{background:var(--accent-glow);color:var(--accent)}
+    #header-filename{flex:1;font-size:13px;font-weight:500;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 4px}
+    .header-actions{margin-left:auto;display:flex;gap:2px;flex-shrink:0}
+    .icon-btn{width:30px;height:30px;border-radius:6px;border:none;background:transparent;color:var(--text-secondary);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .15s,color .15s}
+    .icon-btn:hover{background:var(--bg-hover);color:var(--text-primary)}
+    .icon-btn.active{color:var(--accent);background:var(--accent-glow)}
+
+    /* ── MAIN ── */
+    #main{display:flex;flex:1;overflow:hidden}
+
+    /* ── SIDEBAR (y chang editor — drawer overlay) ── */
+    #sidebar{
+      position:absolute;top:var(--header-h);left:0;
+      height:calc(100dvh - var(--header-h));width:var(--sidebar-w);
+      background:var(--bg-sidebar);border-right:1px solid var(--border);
+      display:flex;flex-direction:column;overflow:hidden;
+      transition:transform .22s cubic-bezier(.4,0,.2,1);
+      transform:translateX(0);z-index:500;box-shadow:4px 0 32px rgba(0,0,0,.5);
+    }
+    #sidebar.collapsed{transform:translateX(calc(-1 * var(--sidebar-w)))}
+    #sidebar-backdrop{display:block!important;position:absolute;top:var(--header-h);left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:499;opacity:0;pointer-events:none;transition:opacity .22s}
+    #sidebar-backdrop.visible{opacity:1;pointer-events:all}
+
+    /* sidebar tab bar — y chang editor */
+    #sidebar-tabs{display:flex;align-items:center;padding:6px 8px 0;gap:2px;border-bottom:1px solid var(--border);flex-shrink:0;background:var(--bg-sidebar)}
+    .stab{display:flex;align-items:center;gap:5px;padding:5px 10px;border:none;background:transparent;color:var(--text-dim);font-size:11.5px;font-family:inherit;border-radius:6px 6px 0 0;cursor:pointer;border-bottom:2px solid transparent;transition:color .15s,border-color .15s}
+    .stab:hover{color:var(--text-secondary)}
+    .stab.active{color:var(--accent);border-bottom-color:var(--accent)}
+
+    /* file-tree style — dùng cho snippets list */
+    #snippets-tree{flex:1;overflow-y:auto;padding:4px 0}
+    #snippets-tree::-webkit-scrollbar{width:4px}
+    #snippets-tree::-webkit-scrollbar-track{background:transparent}
+    #snippets-tree::-webkit-scrollbar-thumb{background:var(--border-light);border-radius:2px}
+    .tree-item{display:flex;align-items:center;gap:6px;padding:4px 8px;cursor:pointer;color:var(--text-secondary);border-radius:4px;margin:0 4px;transition:background .1s,color .1s;font-size:12.5px;white-space:nowrap}
+    .tree-item:hover{background:var(--bg-hover);color:var(--text-primary)}
+    .tree-item.active{background:var(--bg-active);color:var(--text-primary)}
+    .tree-item .tree-icon{width:15px;text-align:center;flex-shrink:0;font-style:normal}
+    .tree-item .tree-name{flex:1;overflow:hidden;text-overflow:ellipsis}
+    .tree-item .tree-lang{font-size:10px;color:var(--text-dim);font-family:'JetBrains Mono',monospace;background:var(--bg-active);padding:1px 5px;border-radius:3px;flex-shrink:0}
+    .tree-item .tree-del{width:16px;height:16px;border-radius:3px;border:none;background:transparent;color:var(--text-dim);cursor:pointer;display:flex;align-items:center;justify-content:center;opacity:0;font-size:14px;line-height:1;flex-shrink:0}
+    .tree-item:hover .tree-del{opacity:1}
+    .tree-item .tree-del:hover{background:rgba(248,113,113,.2);color:var(--danger)}
+    .tree-empty{padding:20px 12px;text-align:center;color:var(--text-dim);font-size:12px;line-height:1.6}
+    .sidebar-footer{padding:8px;border-top:1px solid var(--border);flex-shrink:0}
+    .sidebar-footer button{width:100%;padding:8px;border-radius:7px;border:1px dashed var(--border-light);background:transparent;color:var(--text-dim);font-family:inherit;font-size:12px;cursor:pointer;transition:all .15s}
+    .sidebar-footer button:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-glow)}
+
+    /* search panel in sidebar */
+    #panel-search-content{padding:10px 8px;display:flex;flex-direction:column;gap:8px;flex:1;overflow:hidden}
+    #panel-search-content input{width:100%;padding:7px 10px;background:var(--bg-base);border:1px solid var(--border-light);border-radius:6px;color:var(--text-primary);font-size:12.5px;font-family:inherit;outline:none}
+    #panel-search-content input:focus{border-color:var(--accent)}
+    #search-results{overflow-y:auto;flex:1}
+    .search-result{padding:5px 8px;border-radius:5px;cursor:pointer;font-size:12px;color:var(--text-secondary);border-bottom:1px solid var(--border)}
+    .search-result:hover{background:var(--bg-hover);color:var(--text-primary)}
+    .search-result .sr-file{color:var(--accent);font-size:11px;margin-bottom:2px;font-family:'JetBrains Mono',monospace}
+    .search-result .sr-line{font-family:'JetBrains Mono',monospace;font-size:11.5px}
+    .search-result .sr-match{color:var(--warn);background:rgba(251,191,36,.12);border-radius:2px;padding:0 2px}
+
+    /* resizer hidden */
+    #resizer{display:none}
+
+    /* ── EDITOR AREA ── */
+    #editor-area{flex:1;display:flex;flex-direction:column;overflow:hidden}
+
+    /* TABS BAR — y chang editor */
+    #tabs-bar{height:var(--tab-h);background:var(--bg-tabs);border-bottom:1px solid var(--border);display:flex;align-items:flex-end;overflow-x:auto;flex-shrink:0}
+    #tabs-bar::-webkit-scrollbar{height:3px}
+    #tabs-bar::-webkit-scrollbar-thumb{background:var(--accent-soft);border-radius:2px}
+    .tab{display:flex;align-items:center;gap:6px;padding:0 12px;height:34px;min-width:120px;max-width:180px;background:var(--bg-tabs);border-right:1px solid var(--border);cursor:pointer;color:var(--text-dim);font-size:12.5px;white-space:nowrap;overflow:hidden;transition:background .1s,color .1s;flex-shrink:0;border-top-left-radius:4px;border-top-right-radius:4px;position:relative}
+    .tab:hover{background:var(--bg-hover);color:var(--text-secondary)}
+    .tab.active{background:var(--tab-active-bg);color:var(--text-primary);border-bottom:2px solid var(--accent)}
+    .tab .tab-icon{width:14px;height:14px;flex-shrink:0;font-style:normal;font-size:13px;line-height:1}
+    .tab .tab-name{flex:1;overflow:hidden;text-overflow:ellipsis}
+    .tab .tab-close{width:18px;height:18px;border-radius:4px;border:none;background:transparent;color:var(--text-dim);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;opacity:0;transition:opacity .1s,background .1s;font-size:15px;line-height:1}
+    .tab:hover .tab-close,.tab.active .tab-close{opacity:1}
+    .tab .tab-close:hover{background:rgba(248,113,113,.2);color:var(--danger)}
+    .tab.modified .tab-name::after{content:'●';font-size:8px;margin-left:4px;color:var(--accent);vertical-align:middle}
+
+    /* EDITOR BODY */
+    #editor-body{flex:1;display:flex;overflow:hidden}
+
+    /* Welcome screen */
+    #welcome{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--text-dim);gap:16px}
+    #welcome .wlc-icon{width:64px;height:64px;opacity:.3}
+    #welcome h2{font-size:18px;font-weight:500;color:var(--text-secondary)}
+    #welcome p{font-size:13px;text-align:center;line-height:1.6;max-width:300px}
+    #welcome .wlc-actions{display:flex;gap:10px;margin-top:8px;flex-wrap:wrap;justify-content:center}
+    .btn-primary{padding:8px 18px;background:var(--accent);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500;transition:background .15s,transform .1s;font-family:inherit}
+    .btn-primary:hover{background:var(--accent-soft);transform:translateY(-1px)}
+    .btn-secondary{padding:8px 18px;background:transparent;color:var(--text-secondary);border:1px solid var(--border-light);border-radius:8px;cursor:pointer;font-size:13px;font-weight:500;transition:background .15s;font-family:inherit}
+    .btn-secondary:hover{background:var(--bg-hover);color:var(--text-primary)}
+
+    /* SPLIT: code | preview */
+    #split-wrap{flex:1;display:flex;overflow:hidden}
+    #code-pane{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:80px}
+    #monaco-container{flex:1;overflow:hidden;display:none}
+    #split-resizer{width:4px;background:transparent;cursor:col-resize;flex-shrink:0;transition:background .15s}
+    #split-resizer:hover,#split-resizer.dragging{background:var(--accent)}
+    #preview-pane{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:80px;border-left:1px solid var(--border)}
+
+    /* preview sub-tabs — y chang tab bar style */
+    #preview-tabs{height:var(--tab-h);background:var(--bg-tabs);border-bottom:1px solid var(--border);display:flex;align-items:flex-end;flex-shrink:0;padding:0 0 0 4px}
+    .ptab{display:flex;align-items:center;gap:5px;padding:0 12px;height:32px;border:none;background:transparent;color:var(--text-dim);font-size:12px;font-family:inherit;cursor:pointer;border-bottom:2px solid transparent;transition:color .15s,border-color .15s;flex-shrink:0}
+    .ptab:hover{color:var(--text-secondary)}
+    .ptab.active{color:var(--text-primary);border-bottom-color:var(--accent)}
+    .preview-actions{margin-left:auto;display:flex;gap:2px;align-items:center;padding:0 4px 2px}
+    #err-badge{font-size:9px;background:var(--danger);color:#fff;border-radius:8px;padding:1px 5px;display:none;font-family:'JetBrains Mono',monospace}
+    #preview-frame{flex:1;border:none;background:#fff;display:none}
+    #md-preview{flex:1;overflow-y:auto;padding:20px 24px;display:none;font-size:14px;line-height:1.7;color:var(--text-secondary)}
+    #md-preview::-webkit-scrollbar{width:4px}
+    #md-preview::-webkit-scrollbar-thumb{background:var(--border-light);border-radius:2px}
+    #md-preview h1,#md-preview h2,#md-preview h3{color:var(--text-primary);margin:1em 0 .4em}
+    #md-preview h1{font-size:1.5em;border-bottom:1px solid var(--border-light);padding-bottom:.3em}
+    #md-preview h2{font-size:1.25em}
+    #md-preview code{background:var(--bg-active);padding:2px 6px;border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:.85em;color:var(--cyan)}
+    #md-preview pre{background:var(--bg-active);padding:14px;border-radius:8px;overflow-x:auto;margin-bottom:1em}
+    #md-preview pre code{background:none;padding:0}
+    #md-preview a{color:var(--accent)}
+    #md-preview ul,#md-preview ol{padding-left:1.4em;margin-bottom:.8em}
+    #md-preview blockquote{border-left:3px solid var(--accent);padding-left:12px;color:var(--text-dim);margin:.8em 0}
+    #md-preview p{margin-bottom:.7em}
+    #md-preview table{width:100%;border-collapse:collapse;margin-bottom:1em;font-size:.9em}
+    #md-preview th,#md-preview td{padding:6px 10px;border:1px solid var(--border-light)}
+    #md-preview th{background:var(--bg-active);color:var(--text-primary)}
+    #console-view{flex:1;display:none;flex-direction:column;overflow:hidden;background:var(--bg-base)}
+    #console-output{flex:1;overflow-y:auto;font-family:'JetBrains Mono',monospace;font-size:12px;padding:4px 0}
+    #console-output::-webkit-scrollbar{width:4px}
+    #console-output::-webkit-scrollbar-thumb{background:var(--border-light);border-radius:2px}
+    .clog{display:flex;gap:8px;padding:3px 12px;border-bottom:1px solid rgba(255,255,255,.03);align-items:flex-start;line-height:1.5}
+    .clog:hover{background:var(--bg-hover)}
+    .clog .ct{color:var(--text-dim);font-size:10px;flex-shrink:0;padding-top:2px;min-width:56px}
+    .clog .cm{flex:1;word-break:break-all}
+    .clog.log .cm{color:var(--text-secondary)}
+    .clog.info .cm{color:var(--cyan)}
+    .clog.warn .cm{color:var(--warn)}
+    .clog.error{background:rgba(248,113,113,.04)}
+    .clog.error .cm{color:var(--danger)}
+    #console-repl{display:flex;align-items:center;gap:6px;border-top:1px solid var(--border);padding:6px 10px;background:var(--bg-sidebar)}
+    #console-repl span{color:var(--accent);font-family:'JetBrains Mono',monospace}
+    #repl-input{flex:1;background:transparent;border:none;outline:none;color:var(--text-primary);font-family:'JetBrains Mono',monospace;font-size:12px}
+
+    /* STATUS BAR — y chang editor */
+    #statusbar{height:var(--statusbar-h);background:var(--accent-soft);display:flex;align-items:center;padding:0 12px;gap:16px;font-size:11.5px;color:rgba(255,255,255,.85);flex-shrink:0;user-select:none}
+    .status-item{display:flex;align-items:center;gap:4px;cursor:pointer;padding:0 4px;border-radius:3px}
+    .status-item:hover{background:rgba(255,255,255,.15)}
+    .status-right{margin-left:auto;display:flex;gap:12px}
+    #live-dot{width:6px;height:6px;border-radius:50%;background:var(--success);display:inline-block}
+    #live-dot.off{background:var(--text-dim)}
+
+    /* MODAL — y chang editor */
+    .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1000;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(3px);opacity:0;pointer-events:none;transition:opacity .2s}
+    .modal-overlay.open{opacity:1;pointer-events:all}
+    .modal{background:var(--bg-active);border:1px solid var(--border-light);border-radius:12px;padding:24px;min-width:340px;max-width:480px;box-shadow:0 24px 64px rgba(0,0,0,.6);transform:translateY(12px);transition:transform .2s}
+    .modal-overlay.open .modal{transform:translateY(0)}
+    .modal h3{font-size:15px;font-weight:600;margin-bottom:16px}
+    .modal input,.modal select{width:100%;padding:9px 12px;background:var(--bg-base);border:1px solid var(--border-light);border-radius:7px;color:var(--text-primary);font-size:13px;font-family:inherit;outline:none;transition:border .15s;margin-bottom:12px}
+    .modal input:focus,.modal select:focus{border-color:var(--accent)}
+    .modal select option{background:var(--bg-active)}
+    .modal-actions{display:flex;gap:10px;margin-top:4px;justify-content:flex-end}
+
+    /* CTX MENU — y chang editor */
+    .ctx-menu{position:fixed;background:var(--bg-active);border:1px solid var(--border-light);border-radius:8px;padding:4px;min-width:160px;z-index:9999;box-shadow:0 8px 32px rgba(0,0,0,.5)}
+    .ctx-item{padding:6px 12px;border-radius:5px;cursor:pointer;font-size:12.5px;color:var(--text-secondary);display:flex;align-items:center;gap:8px}
+    .ctx-item:hover{background:var(--bg-hover);color:var(--text-primary)}
+    .ctx-item.danger:hover{background:rgba(248,113,113,.12);color:var(--danger)}
+    .ctx-divider{height:1px;background:var(--border);margin:3px 0}
+
+    /* TOAST — y chang editor */
+    #toast-container{position:fixed;bottom:36px;right:16px;z-index:9999;display:flex;flex-direction:column;gap:8px;pointer-events:none}
+    .toast{padding:10px 16px;background:var(--bg-active);border:1px solid var(--border-light);border-radius:8px;font-size:12.5px;color:var(--text-primary);box-shadow:0 4px 20px rgba(0,0,0,.4);opacity:0;transform:translateX(20px);transition:opacity .2s,transform .2s;pointer-events:all}
+    .toast.show{opacity:1;transform:translateX(0)}
+    .toast.success{border-left:3px solid var(--success)}
+    .toast.error{border-left:3px solid var(--danger)}
+    .toast.info{border-left:3px solid var(--accent)}
+
+    /* drag-over */
+    #app.drag-over::after{content:'Drop files here';position:fixed;inset:0;background:rgba(124,106,247,.12);border:2px dashed var(--accent);border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:18px;color:var(--accent);z-index:9998;pointer-events:none}
+
+    /* ── MOBILE — y chang editor ── */
+    #bottom-toolbar{display:none}
+    @media(max-width:768px){
+      :root{--sidebar-w:75vw;--header-h:48px;--tab-h:40px;--statusbar-h:22px}
+      .tab{min-width:90px;height:36px;padding:0 10px;font-size:12px}
+      .tab .tab-close{opacity:1;width:22px;height:22px}
+      #split-resizer{display:none}
+      #split-wrap{flex-direction:column}
+      #code-pane{height:50%;flex:none;border-bottom:1px solid var(--border)}
+      #preview-pane{flex:1;border-left:none}
+      #bottom-toolbar{display:flex;height:48px;background:var(--bg-sidebar);border-top:1px solid var(--border);flex-shrink:0;align-items:center;justify-content:space-around;padding:0 4px;z-index:100}
+      .bot-btn{flex:1;height:44px;border:none;background:transparent;color:var(--text-dim);cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;border-radius:8px;font-size:9.5px;font-family:inherit;transition:background .15s,color .15s}
+      .bot-btn svg{width:18px;height:18px}
+      .bot-btn:active,.bot-btn.active{background:var(--accent-glow);color:var(--accent)}
+      .modal{min-width:unset;width:90vw;padding:20px}
+      #statusbar{font-size:10.5px;padding:0 8px;gap:8px}
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+
+  <!-- HEADER — y chang editor -->
+  <div id="header">
+    <button id="btn-hamburger" title="Snippets (Ctrl+B)">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    </button>
+    <span id="header-filename">Genesis Playground</span>
+    <div class="header-actions">
+      <button class="icon-btn" id="btn-open-file" title="Open File from device">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg>
+      </button>
+      <button class="icon-btn" id="btn-new-tab" title="New Tab (Ctrl+N)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+      </button>
+      <button class="icon-btn" id="btn-save-snip" title="Save Snippet (Ctrl+S)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+      </button>
+      <button class="icon-btn active" id="btn-live" title="Live reload">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+      </button>
+      <button class="icon-btn" id="btn-run" title="Run (Ctrl+Enter)">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
+      </button>
+      <button class="icon-btn" id="btn-share" title="Share via URL">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <div id="main">
+    <div id="sidebar-backdrop"></div>
+
+    <!-- SIDEBAR — y chang editor, drawer overlay -->
+    <div id="sidebar" class="collapsed">
+      <div id="sidebar-tabs">
+        <button class="stab active" id="stab-snippets">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          Snippets
+        </button>
+        <button class="stab" id="stab-search">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          Search
+        </button>
+        <div style="flex:1"></div>
+        <button class="icon-btn" id="btn-save-snip-sidebar" title="Save Snippet" style="width:26px;height:26px">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+        </button>
+      </div>
+
+      <!-- Snippets panel -->
+      <div id="panel-snippets" style="display:flex;flex-direction:column;flex:1;overflow:hidden">
+        <div id="snippets-tree"></div>
+        <div class="sidebar-footer"><button id="btn-save-snip2">＋ Save current as snippet</button></div>
+      </div>
+
+      <!-- Search panel -->
+      <div id="panel-search" style="display:none;flex-direction:column;flex:1;overflow:hidden">
+        <div id="panel-search-content">
+          <input type="text" id="search-input" placeholder="Search in snippets…"/>
+          <div id="search-results"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="resizer"></div>
+
+    <!-- EDITOR AREA -->
+    <div id="editor-area">
+      <!-- TABS BAR — y chang editor -->
+      <div id="tabs-bar"></div>
+
+      <div id="editor-body">
+        <!-- Welcome screen — y chang editor -->
+        <div id="welcome">
+          <svg class="wlc-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><polygon points="5,3 19,12 5,21"/></svg>
+          <h2>Genesis Playground</h2>
+          <p>Create a new tab to start coding. Supports HTML, CSS, JS, Markdown, and Python.</p>
+          <div class="wlc-actions">
+            <button class="btn-primary" id="btn-wlc-open">Open File</button>
+            <button class="btn-secondary" id="btn-wlc-html">New HTML</button>
+            <button class="btn-secondary" id="btn-wlc-js">New JS</button>
+            <button class="btn-secondary" id="btn-wlc-md">New Markdown</button>
+          </div>
+        </div>
+
+        <!-- SPLIT: code | preview -->
+        <div id="split-wrap" style="display:none;flex:1">
+          <div id="code-pane">
+            <div id="monaco-container"></div>
+          </div>
+          <div id="split-resizer"></div>
+          <div id="preview-pane">
+            <!-- preview sub-tabs — y chang tab bar -->
+            <div id="preview-tabs">
+              <button class="ptab active" data-pview="preview">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/></svg>
+                Preview
+              </button>
+              <button class="ptab" data-pview="console">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+                Console<span id="err-badge"></span>
+              </button>
+              <div class="preview-actions">
+                <button class="icon-btn" id="btn-clear" title="Clear console" style="width:26px;height:26px">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M9 6V4h6v2"/></svg>
+                </button>
+                <button class="icon-btn" id="btn-fullscreen" title="Fullscreen preview" style="width:26px;height:26px">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+                </button>
+              </div>
+            </div>
+            <iframe id="preview-frame" sandbox="allow-scripts allow-modals allow-forms allow-pointer-lock"></iframe>
+            <div id="md-preview"></div>
+            <div id="console-view">
+              <div id="console-output"></div>
+              <div id="console-repl">
+                <span>›</span>
+                <input id="repl-input" placeholder="Evaluate JS…" autocomplete="off" spellcheck="false"/>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div><!-- /editor-body -->
+    </div><!-- /editor-area -->
+  </div><!-- /main -->
+
+  <!-- BOTTOM TOOLBAR (mobile) — y chang editor -->
+  <div id="bottom-toolbar">
+    <button class="bot-btn active" id="bot-snippets">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      Snippets
+    </button>
+    <button class="bot-btn" id="bot-search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      Search
+    </button>
+    <button class="bot-btn" id="bot-new">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+      New
+    </button>
+    <button class="bot-btn" id="bot-save">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/></svg>
+      Save
+    </button>
+    <button class="bot-btn" id="bot-run">
+      <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
+      Run
+    </button>
+  </div>
+
+  <!-- STATUS BAR — y chang editor -->
+  <div id="statusbar">
+    <div class="status-item">
+      <span id="live-dot"></span>
+      <span id="live-label">Live</span>
+    </div>
+    <div class="status-item" id="status-lang">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+      <span id="status-lang-text">—</span>
+    </div>
+    <div class="status-right">
+      <div class="status-item" id="status-pos"><span id="status-pos-text">Ln 1, Col 1</span></div>
+      <div class="status-item"><span id="status-size">0 B</span></div>
+    </div>
+  </div>
+</div><!-- /app -->
+
+<!-- MODAL: New Tab — y chang editor modal -->
+<div class="modal-overlay" id="modal-new">
+  <div class="modal">
+    <h3>New Tab</h3>
+    <input type="text" id="modal-new-name" placeholder="filename.js" autocomplete="off" spellcheck="false"/>
+    <select id="modal-new-lang">
+      <option value="html">HTML — full document + preview</option>
+      <option value="css">CSS — stylesheet</option>
+      <option value="js" selected>JavaScript</option>
+      <option value="md">Markdown — live preview</option>
+      <option value="py">Python — via Pyodide</option>
+    </select>
+    <div class="modal-actions">
+      <button class="btn-secondary" id="modal-new-cancel">Cancel</button>
+      <button class="btn-primary" id="modal-new-ok">Create</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Save Snippet -->
+<div class="modal-overlay" id="modal-snip">
+  <div class="modal">
+    <h3>Save Snippet</h3>
+    <input type="text" id="modal-snip-name" placeholder="Snippet name…" autocomplete="off" spellcheck="false"/>
+    <div class="modal-actions">
+      <button class="btn-secondary" id="modal-snip-cancel">Cancel</button>
+      <button class="btn-primary" id="modal-snip-ok">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Rename Tab -->
+<div class="modal-overlay" id="modal-rename">
+  <div class="modal">
+    <h3>Rename Tab</h3>
+    <input type="text" id="modal-rename-input" autocomplete="off" spellcheck="false"/>
+    <div class="modal-actions">
+      <button class="btn-secondary" id="modal-rename-cancel">Cancel</button>
+      <button class="btn-primary" id="modal-rename-ok">Rename</button>
+    </div>
+  </div>
+</div>
+
+<!-- CONTEXT MENU — y chang editor -->
+<div class="ctx-menu" id="ctx-menu" style="display:none">
+  <div class="ctx-item" id="ctx-run">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
+    Run
+  </div>
+  <div class="ctx-item" id="ctx-rename">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+    Rename
+  </div>
+  <div class="ctx-item" id="ctx-save-snip">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/></svg>
+    Save as Snippet
+  </div>
+  <div class="ctx-divider"></div>
+  <div class="ctx-item danger" id="ctx-close">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    Close Tab
+  </div>
+</div>
+
+<div id="toast-container"></div>
+
+<script>
+// ═══════════════════════════════════════
+//  DEFAULTS
+// ═══════════════════════════════════════
+const DEFAULTS = {
+  html: `<!DOCTYPE html>\n<html>\n<head>\n  <meta charset="UTF-8">\n  <style>\n    body{\n      font-family:system-ui,sans-serif;\n      background:#0f0f17;\n      color:#e2e2f0;\n      display:flex;\n      align-items:center;\n      justify-content:center;\n      min-height:100vh;\n      margin:0;\n    }\n    h1{color:#7c6af7}\n  </style>\n</head>\n<body>\n  <div style="text-align:center">\n    <h1>Genesis Playground ✦</h1>\n    <p>Edit code — see live preview</p>\n  </div>\n  <script>console.log('Ready!');<\/script>\n</body>\n</html>`,
+  css: `/* CSS */\nbody {\n  font-family: system-ui, sans-serif;\n  background: #0f0f17;\n  color: #e2e2f0;\n  padding: 24px;\n}`,
+  js: `// JavaScript\nconsole.log('Hello from Genesis Playground!');\n\ndocument.addEventListener('DOMContentLoaded', () => {\n  document.body.style.background = '#0f0f17';\n  document.body.style.color = '#e2e2f0';\n  document.body.innerHTML = '<h1 style="color:#7c6af7;font-family:sans-serif;padding:24px">Hello! ✦</h1>';\n});`,
+  md: `# Genesis Playground\n\nWrite **Markdown** here and see a live preview.\n\n## Features\n- Multi-tab editor\n- Live reload\n- Snippet saving\n- HTML/CSS/JS/Markdown/Python\n\n\`\`\`js\nconsole.log('Hello!');\n\`\`\`\n`,
+  py: `# Python (Pyodide)\nprint("Hello from Python!")\n\ndef fib(n):\n    a, b = 0, 1\n    for _ in range(n):\n        print(a, end=' ')\n        a, b = b, a+b\nfib(10)\n`,
+};
+const FILE_ICONS = {html:'🌐',css:'🎨',js:'🟨',md:'📝',py:'🐍'};
+const LANG_LABELS = {html:'HTML',css:'CSS',js:'JavaScript',md:'Markdown',py:'Python'};
+const MONACO_LANGS = {html:'html',css:'css',js:'javascript',md:'markdown',py:'python'};
+const EXT_MAP = {html:'html',css:'css',js:'js',md:'md',py:'py'};
+
+// ═══════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════
+const state = {
+  tabs: [],           // [{id, name, lang, content, modified, model}]
+  activeTab: null,
+  sidebarVisible: false,
+  currentPanel: 'snippets',
+  liveReload: true,
+  snippets: JSON.parse(localStorage.getItem('gp_snippets') || '[]'),
+  errCount: 0,
+  ctxTabId: null,
+  pyodide: null,
+  pyodideLoading: false,
+};
+const isMobileLayout = () => window.innerWidth <= 768;
+
+// ═══════════════════════════════════════
+//  MONACO
+// ═══════════════════════════════════════
+let monacoEditor = null;
+let monacoReady = false;
+
+require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs' } });
+require(['vs/editor/editor.main'], function(monaco) {
+  const mob = isMobileLayout();
+  monacoEditor = monaco.editor.create(document.getElementById('monaco-container'), {
+    value: '', language: 'javascript', theme: 'vs-dark',
+    fontFamily: "'JetBrains Mono','Fira Code',monospace",
+    fontSize: mob ? 14 : 13.5, lineHeight: mob ? 24 : 22,
+    minimap: { enabled: false }, scrollBeyondLastLine: false,
+    automaticLayout: true, tabSize: 2, wordWrap: 'off',
+    scrollbar: { horizontalScrollbarSize: mob ? 10 : 6, verticalScrollbarSize: mob ? 10 : 6 },
+    smoothScrolling: true, cursorBlinking: 'smooth', cursorSmoothCaretAnimation: 'on',
+    bracketPairColorization: { enabled: true },
+    guides: { indentation: !mob, bracketPairs: !mob },
+    renderWhitespace: 'none', folding: !mob,
+    lineDecorationsWidth: mob ? 4 : 10, lineNumbersMinChars: mob ? 3 : 4,
+    padding: { top: 10, bottom: 40 },
+  });
+
+  monacoEditor.onDidChangeCursorPosition(e => {
+    document.getElementById('status-pos-text').textContent = `Ln ${e.position.lineNumber}, Col ${e.position.column}`;
+  });
+
+  monacoEditor.onDidChangeModelContent(() => {
+    const tab = activeTab();
+    if (!tab) return;
+    tab.content = monacoEditor.getValue();
+    if (!tab.modified) { tab.modified = true; renderTabs(); }
+    updateSize();
+    if (state.liveReload) scheduleRun();
+  });
+
+  monacoReady = true;
+  showToast('Monaco Editor ready', 'success');
+  loadFromURL();
+});
+
+// ═══════════════════════════════════════
+//  TABS
+// ═══════════════════════════════════════
+function activeTab() { return state.tabs.find(t => t.id === state.activeTab) || null; }
+
+function createTab(name, lang, content) {
+  const id = Date.now() + Math.random();
+  let model = null;
+  if (monacoReady && window.monaco) {
+    const uri = window.monaco.Uri.parse(`inmemory://pg/${id}`);
+    model = window.monaco.editor.createModel(content, MONACO_LANGS[lang], uri);
+  }
+  const tab = { id, name, lang, content, modified: false, model };
+  state.tabs.push(tab);
+  activateTab(id);
+  return tab;
+}
+
+function activateTab(id) {
+  const cur = activeTab();
+  if (cur && monacoEditor) cur.content = monacoEditor.getValue();
+
+  state.activeTab = id;
+  const tab = activeTab();
+  if (!tab) return;
+
+  // Show split layout
+  document.getElementById('welcome').style.display = 'none';
+  document.getElementById('split-wrap').style.display = 'flex';
+  document.getElementById('monaco-container').style.display = '';
+
+  if (monacoEditor && tab.model) {
+    monacoEditor.setModel(tab.model);
+    monacoEditor.focus();
+  }
+
+  document.getElementById('header-filename').textContent = tab.name;
+  document.getElementById('status-lang-text').textContent = LANG_LABELS[tab.lang] || tab.lang;
+  renderTabs();
+  scheduleRun();
+}
+
+function closeTab(id) {
+  const idx = state.tabs.findIndex(t => t.id === id);
+  if (idx === -1) return;
+  const tab = state.tabs[idx];
+  if (tab.model) tab.model.dispose();
+  state.tabs.splice(idx, 1);
+  if (state.tabs.length === 0) {
+    // Back to welcome
+    state.activeTab = null;
+    document.getElementById('welcome').style.display = '';
+    document.getElementById('split-wrap').style.display = 'none';
+    document.getElementById('header-filename').textContent = 'Genesis Playground';
+    document.getElementById('status-lang-text').textContent = '—';
+  } else {
+    if (state.activeTab === id) {
+      activateTab(state.tabs[Math.min(idx, state.tabs.length - 1)].id);
+    }
+  }
+  renderTabs();
+}
+
+function renderTabs() {
+  const bar = document.getElementById('tabs-bar');
+  bar.innerHTML = '';
+  state.tabs.forEach(tab => {
+    const el = document.createElement('div');
+    el.className = 'tab' + (tab.id === state.activeTab ? ' active' : '') + (tab.modified ? ' modified' : '');
+    el.innerHTML = `<span class="tab-icon">${FILE_ICONS[tab.lang]||'📄'}</span><span class="tab-name" title="${tab.name}">${tab.name}</span><button class="tab-close" title="Close">×</button>`;
+    el.addEventListener('click', () => activateTab(tab.id));
+    el.addEventListener('contextmenu', e => showCtxMenu(e, tab.id));
+    el.querySelector('.tab-close').addEventListener('click', e => { e.stopPropagation(); closeTab(tab.id); });
+    bar.appendChild(el);
+  });
+}
+
+// ═══════════════════════════════════════
+//  CONTEXT MENU
+// ═══════════════════════════════════════
+function showCtxMenu(e, tabId) {
+  e.preventDefault();
+  state.ctxTabId = tabId;
+  const m = document.getElementById('ctx-menu');
+  m.style.display = 'block';
+  m.style.left = Math.min(e.clientX, window.innerWidth - 170) + 'px';
+  m.style.top = Math.min(e.clientY, window.innerHeight - 130) + 'px';
+}
+document.addEventListener('click', () => document.getElementById('ctx-menu').style.display = 'none');
+document.getElementById('ctx-run').addEventListener('click', () => { if (state.ctxTabId) { activateTab(state.ctxTabId); runCode(); } });
+document.getElementById('ctx-rename').addEventListener('click', () => openRenameModal(state.ctxTabId));
+document.getElementById('ctx-save-snip').addEventListener('click', () => { if (state.ctxTabId) { activateTab(state.ctxTabId); openSaveSnipModal(); } });
+document.getElementById('ctx-close').addEventListener('click', () => { if (state.ctxTabId) closeTab(state.ctxTabId); });
+
+// ═══════════════════════════════════════
+//  RUN
+// ═══════════════════════════════════════
+let runTimer;
+function scheduleRun() { clearTimeout(runTimer); runTimer = setTimeout(runCode, 500); }
+
+function runCode() {
+  const tab = activeTab();
+  if (!tab) return;
+  const content = monacoEditor ? monacoEditor.getValue() : tab.content;
+  if (tab.lang === 'md') { runMarkdown(content); return; }
+  if (tab.lang === 'py') { runPython(content); return; }
+  runHTML(tab.lang, content);
+}
+
+function runHTML(lang, content) {
+  let html = content;
+  if (lang === 'css') {
+    html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>${content}</style></head><body style="background:#0f0f17;color:#8888aa;padding:24px;font-family:sans-serif"><p><em>CSS applied — add HTML elements to see styled content</em></p></body></html>`;
+  } else if (lang === 'js') {
+    html = `<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body><script>${content}<\/script></body></html>`;
+  } else if (!html.includes('<html') && !html.includes('<!DOCTYPE')) {
+    html = `<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body>${content}</body></html>`;
+  }
+  // Console proxy
+  const proxy = `<script>(function(){const p=window.parent;['log','info','warn','error'].forEach(t=>{const o=console[t];console[t]=function(...a){o.apply(console,a);p.postMessage({type:'console',level:t,args:a.map(x=>{try{return typeof x==='object'?JSON.stringify(x,null,2):String(x)}catch(e){return String(x)}})}, '*')}});window.onerror=(m,s,l)=>p.postMessage({type:'console',level:'error',args:[m+' (line '+l+')']}, '*')})()<\/script>`;
+  html = html.replace(/<head>/i, '<head>' + proxy);
+  const blob = new Blob([html], { type: 'text/html' });
+  const url = URL.createObjectURL(blob);
+  const frame = document.getElementById('preview-frame');
+  frame.onload = () => URL.revokeObjectURL(url);
+  frame.src = url;
+  showPreviewView('preview');
+}
+
+function runMarkdown(content) {
+  document.getElementById('md-preview').innerHTML = parseMarkdown(content);
+  showPreviewView('md');
+}
+
+async function runPython(content) {
+  showPreviewView('console');
+  if (!state.pyodide && !state.pyodideLoading) {
+    state.pyodideLoading = true;
+    addLog('info', 'Loading Pyodide (first run takes a moment)…');
+    try {
+      await new Promise((res, rej) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdn.jsdelivr.net/pyodide/v0.25.1/full/pyodide.js';
+        s.onload = res; s.onerror = rej;
+        document.head.appendChild(s);
+      });
+      state.pyodide = await loadPyodide({ indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.25.1/full/' });
+      state.pyodide.runPython('import sys\nfrom io import StringIO\nsys.stdout=StringIO()\nsys.stderr=StringIO()');
+      state.pyodideLoading = false;
+      addLog('info', 'Python ready ✓');
+    } catch(e) {
+      state.pyodideLoading = false;
+      addLog('error', 'Failed to load Python: ' + e.message); return;
+    }
+  }
+  if (state.pyodideLoading) { addLog('warn', 'Python still loading…'); return; }
+  try {
+    state.pyodide.runPython('sys.stdout.truncate(0);sys.stdout.seek(0);sys.stderr.truncate(0);sys.stderr.seek(0)');
+    state.pyodide.runPython(content);
+    const out = state.pyodide.runPython('sys.stdout.getvalue()');
+    const err = state.pyodide.runPython('sys.stderr.getvalue()');
+    if (out) out.trim().split('\n').forEach(l => addLog('log', l));
+    if (err) err.trim().split('\n').forEach(l => addLog('error', l));
+    if (!out && !err) addLog('info', '(no output)');
+  } catch(e) { addLog('error', e.message); }
+}
+
+// ═══════════════════════════════════════
+//  PREVIEW VIEWS
+// ═══════════════════════════════════════
+function showPreviewView(which) {
+  document.getElementById('preview-frame').style.display  = which === 'preview' ? '' : 'none';
+  document.getElementById('md-preview').style.display     = which === 'md'      ? 'block' : 'none';
+  document.getElementById('console-view').style.display   = which === 'console' ? 'flex'  : 'none';
+  document.querySelectorAll('.ptab').forEach(t => {
+    const v = t.dataset.pview;
+    t.classList.toggle('active', v === 'preview' ? (which === 'preview' || which === 'md') : v === which);
+  });
+}
+document.querySelectorAll('.ptab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    if (btn.dataset.pview === 'preview') runCode();
+    else showPreviewView(btn.dataset.pview);
+  });
+});
+
+// ═══════════════════════════════════════
+//  CONSOLE
+// ═══════════════════════════════════════
+window.addEventListener('message', e => {
+  if (e.data?.type === 'console') addLog(e.data.level, e.data.args.join(' '));
+});
+function addLog(level, msg) {
+  const out = document.getElementById('console-output');
+  const el = document.createElement('div');
+  el.className = `clog ${level}`;
+  const now = new Date();
+  const t = [now.getHours(), now.getMinutes(), now.getSeconds()].map(n => String(n).padStart(2,'0')).join(':');
+  el.innerHTML = `<span class="ct">${t}</span><span class="cm">${escHtml(String(msg))}</span>`;
+  out.appendChild(el);
+  out.scrollTop = out.scrollHeight;
+  if (level === 'error' || level === 'warn') {
+    state.errCount++;
+    const b = document.getElementById('err-badge');
+    b.textContent = ' ' + state.errCount;
+    b.style.display = 'inline';
+  }
+}
+document.getElementById('repl-input').addEventListener('keydown', e => {
+  if (e.key !== 'Enter') return;
+  const v = e.target.value.trim(); if (!v) return;
+  addLog('log', '› ' + v);
+  try { const r = eval(v); if (r !== undefined) addLog('info', String(r)); }
+  catch(err) { addLog('error', err.message); }
+  e.target.value = '';
+});
+document.getElementById('btn-clear').addEventListener('click', () => {
+  document.getElementById('console-output').innerHTML = '';
+  state.errCount = 0;
+  document.getElementById('err-badge').style.display = 'none';
+});
+
+// ═══════════════════════════════════════
+//  SIDEBAR — y chang editor
+// ═══════════════════════════════════════
+function toggleSidebar(forceOpen) {
+  if (forceOpen === true) state.sidebarVisible = false;
+  state.sidebarVisible = !state.sidebarVisible;
+  document.getElementById('sidebar').classList.toggle('collapsed', !state.sidebarVisible);
+  document.getElementById('sidebar-backdrop').classList.toggle('visible', state.sidebarVisible);
+  document.getElementById('btn-hamburger').classList.toggle('active', state.sidebarVisible);
+}
+function closeSidebarOnMobile() {
+  if (state.sidebarVisible) toggleSidebar();
+}
+document.getElementById('sidebar-backdrop').addEventListener('click', () => closeSidebarOnMobile());
+document.getElementById('btn-hamburger').addEventListener('click', () => toggleSidebar());
+
+function switchPanel(panel) {
+  state.currentPanel = panel;
+  document.getElementById('panel-snippets').style.display = panel === 'snippets' ? 'flex' : 'none';
+  document.getElementById('panel-search').style.display   = panel === 'search'   ? 'flex' : 'none';
+  document.getElementById('stab-snippets').classList.toggle('active', panel === 'snippets');
+  document.getElementById('stab-search').classList.toggle('active', panel === 'search');
+}
+document.getElementById('stab-snippets').addEventListener('click', () => switchPanel('snippets'));
+document.getElementById('stab-search').addEventListener('click', () => switchPanel('search'));
+
+// ═══════════════════════════════════════
+//  SNIPPETS
+// ═══════════════════════════════════════
+function renderSnippets(filter = '') {
+  const tree = document.getElementById('snippets-tree');
+  const items = filter
+    ? state.snippets.filter(s => s.name.toLowerCase().includes(filter.toLowerCase()))
+    : state.snippets;
+  if (!items.length) {
+    tree.innerHTML = `<div class="tree-empty">No snippets saved yet.<br>Save current tab with Ctrl+S.</div>`;
+    return;
+  }
+  tree.innerHTML = items.map((s, i) => `
+    <div class="tree-item" data-i="${state.snippets.indexOf(s)}">
+      <span class="tree-icon">${FILE_ICONS[s.lang]||'📄'}</span>
+      <span class="tree-name" title="${escHtml(s.name)}">${escHtml(s.name)}</span>
+      <span class="tree-lang">${s.lang}</span>
+      <button class="tree-del" data-i="${state.snippets.indexOf(s)}" title="Delete">×</button>
+    </div>`).join('');
+  tree.querySelectorAll('.tree-item').forEach(el => {
+    el.addEventListener('click', e => { if (e.target.classList.contains('tree-del')) return; loadSnippet(+el.dataset.i); });
+  });
+  tree.querySelectorAll('.tree-del').forEach(el => {
+    el.addEventListener('click', e => {
+      e.stopPropagation();
+      state.snippets.splice(+el.dataset.i, 1);
+      localStorage.setItem('gp_snippets', JSON.stringify(state.snippets));
+      renderSnippets();
+    });
+  });
+}
+
+function loadSnippet(i) {
+  const s = state.snippets[i];
+  if (!s) return;
+  createTab(s.name, s.lang, s.code);
+  closeSidebarOnMobile();
+  showToast('Loaded: ' + s.name, 'info');
+}
+
+function openSaveSnipModal() {
+  const tab = activeTab(); if (!tab) return;
+  document.getElementById('modal-snip-name').value = tab.name;
+  openModal('modal-snip');
+  setTimeout(() => document.getElementById('modal-snip-name').focus(), 50);
+}
+
+document.getElementById('btn-save-snip').addEventListener('click', openSaveSnipModal);
+document.getElementById('btn-save-snip-sidebar').addEventListener('click', openSaveSnipModal);
+document.getElementById('btn-save-snip2').addEventListener('click', openSaveSnipModal);
+document.getElementById('modal-snip-cancel').addEventListener('click', () => closeModal('modal-snip'));
+document.getElementById('modal-snip-ok').addEventListener('click', () => {
+  const name = document.getElementById('modal-snip-name').value.trim();
+  if (!name) return;
+  const tab = activeTab(); if (!tab) return;
+  const code = monacoEditor ? monacoEditor.getValue() : tab.content;
+  state.snippets.unshift({ name, lang: tab.lang, code, ts: Date.now() });
+  localStorage.setItem('gp_snippets', JSON.stringify(state.snippets));
+  renderSnippets();
+  closeModal('modal-snip');
+  showToast('Snippet saved!', 'success');
+  if (tab.modified) { tab.modified = false; renderTabs(); }
+});
+document.getElementById('modal-snip-name').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('modal-snip-ok').click();
+  if (e.key === 'Escape') closeModal('modal-snip');
+});
+
+// Search snippets
+document.getElementById('search-input').addEventListener('input', e => {
+  renderSnippets(e.target.value);
+  // also show in search-results
+  const q = e.target.value.trim();
+  const results = document.getElementById('search-results');
+  if (!q) { results.innerHTML = ''; return; }
+  const found = state.snippets.filter(s => s.name.toLowerCase().includes(q.toLowerCase()) || s.code.toLowerCase().includes(q.toLowerCase()));
+  results.innerHTML = found.map((s, i) => {
+    const lineMatch = s.code.split('\n').find(l => l.toLowerCase().includes(q.toLowerCase())) || '';
+    const hl = lineMatch.replace(new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'), 'gi'), m => `<span class="sr-match">${m}</span>`);
+    return `<div class="search-result" data-i="${state.snippets.indexOf(s)}"><div class="sr-file">${escHtml(s.name)}</div><div class="sr-line">${hl || s.code.slice(0,60)}</div></div>`;
+  }).join('');
+  results.querySelectorAll('.search-result').forEach(el => el.addEventListener('click', () => loadSnippet(+el.dataset.i)));
+});
+
+// ═══════════════════════════════════════
+//  NEW TAB MODAL
+// ═══════════════════════════════════════
+function showNewTabModal(lang = 'js') {
+  document.getElementById('modal-new-name').value = '';
+  document.getElementById('modal-new-lang').value = lang;
+  openModal('modal-new');
+  setTimeout(() => document.getElementById('modal-new-name').focus(), 50);
+}
+document.getElementById('btn-new-tab').addEventListener('click', () => showNewTabModal());
+document.getElementById('btn-wlc-open').addEventListener('click', openFile);
+document.getElementById('btn-wlc-html').addEventListener('click', () => showNewTabModal('html'));
+document.getElementById('btn-wlc-js').addEventListener('click', () => showNewTabModal('js'));
+document.getElementById('btn-wlc-md').addEventListener('click', () => showNewTabModal('md'));
+document.getElementById('modal-new-cancel').addEventListener('click', () => closeModal('modal-new'));
+document.getElementById('modal-new-ok').addEventListener('click', () => {
+  const lang = document.getElementById('modal-new-lang').value;
+  let name = document.getElementById('modal-new-name').value.trim();
+  if (!name) name = `untitled.${EXT_MAP[lang] || lang}`;
+  createTab(name, lang, DEFAULTS[lang] || '');
+  closeModal('modal-new');
+});
+document.getElementById('modal-new-name').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('modal-new-ok').click();
+  if (e.key === 'Escape') closeModal('modal-new');
+});
+document.getElementById('modal-new-lang').addEventListener('change', e => {
+  const cur = document.getElementById('modal-new-name').value;
+  if (!cur || cur.startsWith('untitled')) document.getElementById('modal-new-name').value = `untitled.${EXT_MAP[e.target.value]}`;
+});
+
+// ═══════════════════════════════════════
+//  RENAME MODAL
+// ═══════════════════════════════════════
+function openRenameModal(tabId) {
+  const tab = state.tabs.find(t => t.id === tabId); if (!tab) return;
+  state.ctxTabId = tabId;
+  document.getElementById('modal-rename-input').value = tab.name;
+  openModal('modal-rename');
+  setTimeout(() => { const i = document.getElementById('modal-rename-input'); i.focus(); i.select(); }, 50);
+}
+document.getElementById('modal-rename-cancel').addEventListener('click', () => closeModal('modal-rename'));
+document.getElementById('modal-rename-ok').addEventListener('click', () => {
+  const name = document.getElementById('modal-rename-input').value.trim();
+  if (!name || !state.ctxTabId) return;
+  const tab = state.tabs.find(t => t.id === state.ctxTabId);
+  if (tab) { tab.name = name; renderTabs(); if (tab.id === state.activeTab) document.getElementById('header-filename').textContent = name; }
+  closeModal('modal-rename');
+});
+document.getElementById('modal-rename-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('modal-rename-ok').click();
+  if (e.key === 'Escape') closeModal('modal-rename');
+});
+
+// ═══════════════════════════════════════
+//  SHARE VIA URL
+// ═══════════════════════════════════════
+function shareCode() {
+  const tab = activeTab(); if (!tab) return;
+  try {
+    const code = monacoEditor ? monacoEditor.getValue() : tab.content;
+    const payload = btoa(unescape(encodeURIComponent(JSON.stringify({ name: tab.name, lang: tab.lang, code }))));
+    const url = location.href.split('?')[0] + '?c=' + payload;
+    navigator.clipboard.writeText(url).then(() => showToast('Link copied!', 'success')).catch(() => prompt('Copy this URL:', url));
+  } catch(e) { showToast('Share failed', 'error'); }
+}
+document.getElementById('btn-share').addEventListener('click', shareCode);
+
+function loadFromURL() {
+  const p = new URLSearchParams(location.search).get('c');
+  if (!p) return;
+  try {
+    const d = JSON.parse(decodeURIComponent(escape(atob(p))));
+    if (d.name && d.lang && d.code != null) {
+      setTimeout(() => { createTab(d.name, d.lang, d.code); showToast('Loaded shared code!', 'info'); }, 300);
+    }
+  } catch(e) {}
+}
+
+// ═══════════════════════════════════════
+//  SPLIT RESIZER
+// ═══════════════════════════════════════
+const sRes = document.getElementById('split-resizer');
+let sDrag = false;
+sRes.addEventListener('mousedown', e => { sDrag = true; sRes.classList.add('dragging'); e.preventDefault(); });
+document.addEventListener('mousemove', e => {
+  if (!sDrag) return;
+  const area = document.getElementById('split-wrap');
+  const rect = area.getBoundingClientRect();
+  const w = Math.max(120, Math.min(rect.width - 120, e.clientX - rect.left));
+  const cp = document.getElementById('code-pane');
+  cp.style.flex = 'none'; cp.style.width = w + 'px';
+});
+document.addEventListener('mouseup', () => { sDrag = false; sRes.classList.remove('dragging'); });
+
+// ═══════════════════════════════════════
+//  LIVE RELOAD
+// ═══════════════════════════════════════
+document.getElementById('btn-live').addEventListener('click', () => {
+  state.liveReload = !state.liveReload;
+  document.getElementById('btn-live').classList.toggle('active', state.liveReload);
+  document.getElementById('live-dot').classList.toggle('off', !state.liveReload);
+  document.getElementById('live-label').textContent = state.liveReload ? 'Live' : 'Manual';
+  showToast(state.liveReload ? 'Live reload ON' : 'Live reload OFF');
+});
+
+// ═══════════════════════════════════════
+//  FULLSCREEN
+// ═══════════════════════════════════════
+document.getElementById('btn-fullscreen').addEventListener('click', () => {
+  const f = document.getElementById('preview-frame');
+  (f.requestFullscreen || f.webkitRequestFullscreen).call(f);
+});
+
+// ═══════════════════════════════════════
+//  KEYBOARD SHORTCUTS — y chang editor
+// ═══════════════════════════════════════
+document.addEventListener('keydown', e => {
+  if (e.ctrlKey || e.metaKey) {
+    if (e.key === 's') { e.preventDefault(); openSaveSnipModal(); }
+    if (e.key === 'n') { e.preventDefault(); showNewTabModal(); }
+    if (e.key === 'b') { e.preventDefault(); toggleSidebar(); }
+    if (e.key === 'w') { e.preventDefault(); if (state.activeTab) closeTab(state.activeTab); }
+    if (e.key === 'Enter') { e.preventDefault(); runCode(); }
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      const idx = state.tabs.findIndex(t => t.id === state.activeTab);
+      if (idx !== -1) {
+        const next = state.tabs[(idx + (e.shiftKey ? -1 : 1) + state.tabs.length) % state.tabs.length];
+        if (next) activateTab(next.id);
+      }
+    }
+  }
+});
+
+// ═══════════════════════════════════════
+//  BOTTOM TOOLBAR (mobile) — y chang editor
+// ═══════════════════════════════════════
+document.getElementById('bot-snippets').addEventListener('click', () => {
+  if (state.currentPanel === 'snippets' && state.sidebarVisible) toggleSidebar();
+  else { switchPanel('snippets'); if (!state.sidebarVisible) toggleSidebar(); }
+});
+document.getElementById('bot-search').addEventListener('click', () => {
+  if (state.currentPanel === 'search' && state.sidebarVisible) toggleSidebar();
+  else { switchPanel('search'); if (!state.sidebarVisible) toggleSidebar(); }
+});
+document.getElementById('bot-new').addEventListener('click', () => showNewTabModal());
+document.getElementById('bot-save').addEventListener('click', openSaveSnipModal);
+document.getElementById('bot-run').addEventListener('click', runCode);
+document.getElementById('btn-run').addEventListener('click', runCode);
+
+// ═══════════════════════════════════════
+//  MODAL HELPERS
+// ═══════════════════════════════════════
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+document.querySelectorAll('.modal-overlay').forEach(ov => {
+  ov.addEventListener('click', e => { if (e.target === ov) ov.classList.remove('open'); });
+});
+
+// ═══════════════════════════════════════
+//  MARKDOWN PARSER
+// ═══════════════════════════════════════
+function parseMarkdown(md) {
+  let h = escHtml(md);
+  h = h.replace(/```[\w]*\n([\s\S]*?)```/g, (_, c) => `<pre><code>${c.trim()}</code></pre>`);
+  h = h.replace(/`([^`]+)`/g, '<code>$1</code>');
+  h = h.replace(/^### (.+)$/gm,'<h3>$1</h3>').replace(/^## (.+)$/gm,'<h2>$1</h2>').replace(/^# (.+)$/gm,'<h1>$1</h1>');
+  h = h.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\*(.+?)\*/g,'<em>$1</em>');
+  h = h.replace(/\[([^\]]+)\]\(([^)]+)\)/g,'<a href="$2" target="_blank">$1</a>');
+  h = h.replace(/^&gt; (.+)$/gm,'<blockquote>$1</blockquote>');
+  h = h.replace(/^\- (.+)$/gm,'<li>$1</li>');
+  h = h.replace(/(<li>[^]*?<\/li>\n?)+/g, s => `<ul>${s}</ul>`);
+  h = h.replace(/^---$/gm,'<hr>');
+  h = h.replace(/\n\n/g,'</p><p>');
+  return '<p>' + h + '</p>';
+}
+
+// ═══════════════════════════════════════
+//  UTILITIES
+// ═══════════════════════════════════════
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function updateSize() {
+  const tab = activeTab(); if (!tab) return;
+  const bytes = new Blob([monacoEditor ? monacoEditor.getValue() : tab.content]).size;
+  document.getElementById('status-size').textContent = bytes < 1024 ? `${bytes} B` : `${(bytes/1024).toFixed(1)} KB`;
+}
+function showToast(msg, type = 'info') {
+  const c = document.getElementById('toast-container');
+  const t = document.createElement('div');
+  t.className = `toast ${type}`; t.textContent = msg;
+  c.appendChild(t);
+  requestAnimationFrame(() => t.classList.add('show'));
+  setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 250); }, 2500);
+}
+
+
+// ═══════════════════════════════════════
+//  OPEN FILE FROM DEVICE
+// ═══════════════════════════════════════
+async function openFile() {
+  // Try File System Access API (Chrome/Edge)
+  if (window.showOpenFilePicker) {
+    try {
+      const [handle] = await window.showOpenFilePicker({
+        multiple: false,
+        types: [
+          { description: 'Code files', accept: { 'text/*': ['.html','.htm','.css','.js','.ts','.jsx','.tsx','.json','.md','.py','.txt','.xml','.yaml','.yml','.sh','.rb','.go','.rs','.php','.sql','.vue','.svelte'] } }
+        ]
+      });
+      const file = await handle.getFile();
+      const content = await file.text();
+      const lang = detectLangFromName(file.name);
+      createTab(file.name, lang, content);
+      showToast('Opened: ' + file.name, 'success');
+      return;
+    } catch(e) {
+      if (e.name === 'AbortError') return;
+      // fallback to input
+    }
+  }
+  // Fallback: hidden <input type="file">
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.html,.htm,.css,.js,.ts,.jsx,.tsx,.json,.md,.py,.txt,.xml,.yaml,.yml,.sh,.rb,.go,.rs,.php,.sql,.vue,.svelte';
+  input.multiple = true;
+  input.onchange = async () => {
+    for (const file of [...input.files]) {
+      const content = await file.text();
+      const lang = detectLangFromName(file.name);
+      createTab(file.name, lang, content);
+    }
+    if (input.files.length) showToast(`Opened ${input.files.length} file(s)`, 'success');
+  };
+  input.click();
+}
+
+function detectLangFromName(name) {
+  const ext = name.split('.').pop().toLowerCase();
+  const map = {
+    js:'js', jsx:'js', ts:'js', tsx:'js',
+    html:'html', htm:'html',
+    css:'css', scss:'css', less:'css',
+    md:'md', markdown:'md',
+    py:'py',
+  };
+  return map[ext] || 'js';
+}
+
+// Wire Open File buttons
+document.getElementById('btn-open-file').addEventListener('click', openFile);
+
+// ═══════════════════════════════════════
+//  DRAG & DROP FILES
+// ═══════════════════════════════════════
+const appEl = document.getElementById('app');
+appEl.addEventListener('dragover', e => { e.preventDefault(); appEl.classList.add('drag-over'); });
+appEl.addEventListener('dragleave', e => { if (!appEl.contains(e.relatedTarget)) appEl.classList.remove('drag-over'); });
+appEl.addEventListener('drop', async e => {
+  e.preventDefault();
+  appEl.classList.remove('drag-over');
+  const files = [...e.dataTransfer.files];
+  for (const file of files) {
+    if (!file.type.startsWith('text/') && !file.name.match(/\.(html?|css|jsx?|tsx?|md|py|json|yaml|yml|sh|rb|go|rs|php|sql|vue|svelte|txt|xml)$/i)) continue;
+    const content = await file.text();
+    const lang = detectLangFromName(file.name);
+    createTab(file.name, lang, content);
+  }
+  if (files.length) showToast(`Dropped ${files.length} file(s)`, 'success');
+});
+
+// init
+renderSnippets();
+</script>
+</body>
+</html>
