@@ -1,0 +1,17 @@
+{
+  "name": "Genesis Monaco Editor",
+  "short_name": "Genesis",
+  "description": "Code editor with Monaco, works offline",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#0f0f17",
+  "theme_color": "#7c6af7",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='32' fill='%237c6af7'/%3E%3Cpolyline points='112,136 144,96 112,56' stroke='white' stroke-width='12' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpolyline points='80,56 48,96 80,136' stroke='white' stroke-width='12' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E",
+      "sizes": "192x192",
+      "type": "image/svg+xml"
+    }
+  ]
+}

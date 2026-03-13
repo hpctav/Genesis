@@ -1,0 +1,1267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>hpctav@gmail.com</title>
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#1a1a2e" />
+
+  <!-- Monaco Editor from CDN (for offline, download and serve locally) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Inter:wght@300;400;500;600&display=swap');
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg-base:       #0f0f17;
+      --bg-sidebar:    #15151f;
+      --bg-tabs:       #11111a;
+      --bg-editor:     #0d0d14;
+      --bg-hover:      #1e1e2e;
+      --bg-active:     #252535;
+      --accent:        #7c6af7;
+      --accent-soft:   #5c4fd6;
+      --accent-glow:   rgba(124,106,247,0.18);
+      --text-primary:  #e2e2f0;
+      --text-secondary:#8888aa;
+      --text-dim:      #55556a;
+      --border:        #1e1e2e;
+      --border-light:  #252540;
+      --tab-active-bg: #0d0d14;
+      --danger:        #f87171;
+      --success:       #34d399;
+      --warn:          #fbbf24;
+      --sidebar-w:     240px;
+      --tab-h:         38px;
+      --header-h:      44px;
+      --statusbar-h:   24px;
+      --resizer-w:     4px;
+      font-size: 13px;
+    }
+
+    html, body { height: 100%; overflow: hidden; background: var(--bg-base); color: var(--text-primary); font-family: 'Inter', sans-serif; }
+
+    /* ── LAYOUT ── */
+    #app {
+      display: flex; flex-direction: column;
+      height: 100vh;
+      height: 100dvh; /* mobile: excludes browser chrome */
+    }
+
+    /* Header */
+    #header {
+      height: var(--header-h);
+      background: var(--bg-sidebar);
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center;
+      padding: 0 8px; gap: 6px;
+      flex-shrink: 0; z-index: 100;
+      user-select: none;
+    }
+    /* hamburger */
+    #btn-hamburger {
+      width: 34px; height: 34px; border-radius: 7px; border: none;
+      background: transparent; color: var(--text-secondary);
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      transition: background .15s, color .15s; flex-shrink: 0;
+    }
+    #btn-hamburger:hover, #btn-hamburger.active { background: var(--accent-glow); color: var(--accent); }
+    /* active tab name in header */
+    #header-filename {
+      flex: 1; font-size: 13px; font-weight: 500; color: var(--text-secondary);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      padding: 0 4px;
+    }
+    .header-actions { margin-left: auto; display: flex; gap: 2px; flex-shrink: 0; }
+    .icon-btn {
+      width: 30px; height: 30px; border-radius: 6px;
+      border: none; background: transparent; color: var(--text-secondary);
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      transition: background .15s, color .15s;
+    }
+    .icon-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+    .icon-btn.active { color: var(--accent); background: var(--accent-glow); }
+
+    /* Main area */
+    #main { display: flex; flex: 1; overflow: hidden; }
+
+    /* Activity bar - hidden, replaced by hamburger */
+    #activitybar { display: none; }
+
+    /* Sidebar - always drawer/overlay */
+    #sidebar {
+      position: absolute;
+      top: var(--header-h);
+      left: 0;
+      height: calc(100dvh - var(--header-h));
+      width: var(--sidebar-w);
+      background: var(--bg-sidebar);
+      border-right: 1px solid var(--border);
+      display: flex; flex-direction: column; overflow: hidden;
+      transition: transform .22s cubic-bezier(.4,0,.2,1);
+      transform: translateX(0);
+      z-index: 500;
+      box-shadow: 4px 0 32px rgba(0,0,0,.5);
+    }
+    #sidebar.collapsed {
+      transform: translateX(calc(-1 * var(--sidebar-w)));
+    }
+    /* Backdrop always present */
+    #sidebar-backdrop {
+      display: block !important;
+      position: absolute;
+      top: var(--header-h); left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,.5);
+      z-index: 499;
+      opacity: 0; pointer-events: none;
+      transition: opacity .22s;
+    }
+    #sidebar-backdrop.visible { opacity: 1; pointer-events: all; }
+
+    /* Sidebar tab bar */
+    #sidebar-tabs {
+      display: flex; align-items: center;
+      padding: 6px 8px 0; gap: 2px;
+      border-bottom: 1px solid var(--border); flex-shrink: 0;
+      background: var(--bg-sidebar);
+    }
+    .stab {
+      display: flex; align-items: center; gap: 5px;
+      padding: 5px 10px; border: none; background: transparent;
+      color: var(--text-dim); font-size: 11.5px; font-family: inherit;
+      border-radius: 6px 6px 0 0; cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: color .15s, border-color .15s;
+    }
+    .stab:hover { color: var(--text-secondary); }
+    .stab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+    /* File explorer */
+    #file-tree { flex: 1; overflow-y: auto; padding: 4px 0; }
+    #file-tree::-webkit-scrollbar { width: 4px; }
+    #file-tree::-webkit-scrollbar-track { background: transparent; }
+    #file-tree::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 2px; }
+
+    .tree-item {
+      display: flex; align-items: center; gap: 6px;
+      padding: 4px 8px 4px calc(var(--depth,0) * 14px + 8px);
+      cursor: pointer; color: var(--text-secondary);
+      border-radius: 4px; margin: 0 4px;
+      transition: background .1s, color .1s;
+      font-size: 12.5px; white-space: nowrap;
+    }
+    .tree-item:hover { background: var(--bg-hover); color: var(--text-primary); }
+    .tree-item.active { background: var(--bg-active); color: var(--text-primary); }
+    .tree-item.folder > .tree-icon { color: var(--accent); }
+    .tree-item .tree-icon { width: 16px; height: 16px; flex-shrink: 0; opacity: .85; }
+    .tree-item .tree-name { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+    .tree-item .tree-arrow { width: 12px; height: 12px; color: var(--text-dim); transition: transform .15s; flex-shrink: 0; }
+    .tree-item.open > .tree-arrow { transform: rotate(90deg); }
+    .tree-item.folder.open > .tree-icon { color: var(--warn); }
+    .tree-children { overflow: hidden; }
+    .tree-children.collapsed { display: none; }
+
+    /* Context menu */
+    .ctx-menu {
+      position: fixed; background: var(--bg-active); border: 1px solid var(--border-light);
+      border-radius: 8px; padding: 4px; min-width: 160px; z-index: 9999;
+      box-shadow: 0 8px 32px rgba(0,0,0,.5);
+    }
+    .ctx-item {
+      padding: 6px 12px; border-radius: 5px; cursor: pointer;
+      font-size: 12.5px; color: var(--text-secondary); display: flex; align-items: center; gap: 8px;
+    }
+    .ctx-item:hover { background: var(--bg-hover); color: var(--text-primary); }
+    .ctx-item.danger:hover { background: rgba(248,113,113,.12); color: var(--danger); }
+    .ctx-divider { height: 1px; background: var(--border); margin: 3px 0; }
+
+    /* Resizer - hidden (sidebar is overlay) */
+    #resizer { display: none; }
+
+    /* Editor area */
+    #editor-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+    /* Tabs */
+    #tabs-bar {
+      height: var(--tab-h); background: var(--bg-tabs);
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: flex-end;
+      overflow-x: auto; flex-shrink: 0;
+    }
+    #tabs-bar::-webkit-scrollbar { height: 3px; }
+    #tabs-bar::-webkit-scrollbar-thumb { background: var(--accent-soft); border-radius: 2px; }
+    .tab {
+      display: flex; align-items: center; gap: 6px;
+      padding: 0 12px; height: 34px; min-width: 120px; max-width: 180px;
+      background: var(--bg-tabs); border-right: 1px solid var(--border);
+      cursor: pointer; color: var(--text-dim); font-size: 12.5px;
+      white-space: nowrap; overflow: hidden;
+      transition: background .1s, color .1s; flex-shrink: 0;
+      border-top-left-radius: 4px; border-top-right-radius: 4px;
+      position: relative;
+    }
+    .tab:hover { background: var(--bg-hover); color: var(--text-secondary); }
+    .tab.active {
+      background: var(--tab-active-bg); color: var(--text-primary);
+      border-bottom: 2px solid var(--accent);
+    }
+    .tab .tab-icon { width: 14px; height: 14px; flex-shrink: 0; }
+    .tab .tab-name { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+    .tab .tab-close {
+      width: 18px; height: 18px; border-radius: 4px; border: none;
+      background: transparent; color: var(--text-dim); cursor: pointer;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+      opacity: 0; transition: opacity .1s, background .1s;
+    }
+    .tab:hover .tab-close, .tab.active .tab-close { opacity: 1; }
+    .tab .tab-close:hover { background: rgba(248,113,113,.2); color: var(--danger); }
+    .tab.modified .tab-name::after { content: '●'; font-size: 8px; margin-left: 4px; color: var(--accent); vertical-align: middle; }
+
+    /* No tabs placeholder */
+    #welcome {
+      flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+      color: var(--text-dim); gap: 16px;
+    }
+    #welcome .wlc-icon { width: 64px; height: 64px; opacity: .3; }
+    #welcome h2 { font-size: 18px; font-weight: 500; color: var(--text-secondary); }
+    #welcome p { font-size: 13px; text-align: center; line-height: 1.6; max-width: 300px; }
+    #welcome .wlc-actions { display: flex; gap: 10px; margin-top: 8px; }
+    .btn-primary {
+      padding: 8px 18px; background: var(--accent); color: #fff;
+      border: none; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 500;
+      transition: background .15s, transform .1s; font-family: inherit;
+    }
+    .btn-primary:hover { background: var(--accent-soft); transform: translateY(-1px); }
+    .btn-secondary {
+      padding: 8px 18px; background: transparent; color: var(--text-secondary);
+      border: 1px solid var(--border-light); border-radius: 8px; cursor: pointer;
+      font-size: 13px; font-weight: 500; transition: background .15s; font-family: inherit;
+    }
+    .btn-secondary:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+    /* Monaco wrapper */
+    #monaco-container { flex: 1; overflow: hidden; }
+
+    /* Status bar */
+    #statusbar {
+      height: var(--statusbar-h); background: var(--accent-soft);
+      display: flex; align-items: center; padding: 0 12px; gap: 16px;
+      font-size: 11.5px; color: rgba(255,255,255,.85); flex-shrink: 0; user-select: none;
+    }
+    .status-item { display: flex; align-items: center; gap: 4px; cursor: pointer; padding: 0 4px; border-radius: 3px; }
+    .status-item:hover { background: rgba(255,255,255,.15); }
+    .status-right { margin-left: auto; display: flex; gap: 12px; }
+
+    /* Modal */
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 1000;
+      display: flex; align-items: center; justify-content: center;
+      backdrop-filter: blur(3px); opacity: 0; pointer-events: none; transition: opacity .2s;
+    }
+    .modal-overlay.open { opacity: 1; pointer-events: all; }
+    .modal {
+      background: var(--bg-active); border: 1px solid var(--border-light);
+      border-radius: 12px; padding: 24px; min-width: 340px; max-width: 480px;
+      box-shadow: 0 24px 64px rgba(0,0,0,.6);
+      transform: translateY(12px); transition: transform .2s;
+    }
+    .modal-overlay.open .modal { transform: translateY(0); }
+    .modal h3 { font-size: 15px; font-weight: 600; margin-bottom: 16px; }
+    .modal input {
+      width: 100%; padding: 9px 12px; background: var(--bg-base);
+      border: 1px solid var(--border-light); border-radius: 7px;
+      color: var(--text-primary); font-size: 13px; font-family: inherit;
+      outline: none; transition: border .15s;
+    }
+    .modal input:focus { border-color: var(--accent); }
+    .modal-actions { display: flex; gap: 10px; margin-top: 16px; justify-content: flex-end; }
+
+    /* Search panel */
+    #search-panel {
+      padding: 10px 8px; border-bottom: 1px solid var(--border); display: none; flex-direction: column; gap: 8px;
+    }
+    #search-panel.open { display: flex; }
+    #search-panel input {
+      width: 100%; padding: 7px 10px; background: var(--bg-base);
+      border: 1px solid var(--border-light); border-radius: 6px;
+      color: var(--text-primary); font-size: 12.5px; font-family: inherit; outline: none;
+    }
+    #search-panel input:focus { border-color: var(--accent); }
+    .search-result {
+      padding: 5px 8px; border-radius: 5px; cursor: pointer;
+      font-size: 12px; color: var(--text-secondary); border-bottom: 1px solid var(--border);
+    }
+    .search-result:hover { background: var(--bg-hover); color: var(--text-primary); }
+    .search-result .sr-file { color: var(--accent); font-size: 11px; margin-bottom: 2px; font-family: 'JetBrains Mono', monospace; }
+    .search-result .sr-line { font-family: 'JetBrains Mono', monospace; font-size: 11.5px; }
+    .search-result .sr-match { color: var(--warn); background: rgba(251,191,36,.12); border-radius: 2px; padding: 0 2px; }
+    #search-results { max-height: 300px; overflow-y: auto; }
+
+    /* Toast */
+    #toast-container { position: fixed; bottom: 36px; right: 16px; z-index: 9999; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
+    .toast {
+      padding: 10px 16px; background: var(--bg-active); border: 1px solid var(--border-light);
+      border-radius: 8px; font-size: 12.5px; color: var(--text-primary);
+      box-shadow: 0 4px 20px rgba(0,0,0,.4); opacity: 0; transform: translateX(20px);
+      transition: opacity .2s, transform .2s; pointer-events: all;
+    }
+    .toast.show { opacity: 1; transform: translateX(0); }
+    .toast.success { border-left: 3px solid var(--success); }
+    .toast.error { border-left: 3px solid var(--danger); }
+    .toast.info { border-left: 3px solid var(--accent); }
+
+    /* Drag-n-drop highlight */
+    #app.drag-over::after {
+      content: 'Drop files or folder here';
+      position: fixed; inset: 0; background: rgba(124,106,247,.12);
+      border: 2px dashed var(--accent); border-radius: 4px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px; color: var(--accent); z-index: 9998; pointer-events: none;
+    }
+
+    /* ── MOBILE ── */
+    #bottom-toolbar { display: none; }
+    #sidebar-backdrop { display: none; }
+
+    @media (max-width: 768px) {
+      :root {
+        --sidebar-w: 75vw;
+        --header-h: 48px;
+        --tab-h: 40px;
+        --statusbar-h: 22px;
+      }
+      /* sidebar/resizer already handled globally */
+
+      .tab { min-width: 90px; height: 36px; padding: 0 10px; font-size: 12px; }
+      .tab .tab-close { opacity: 1; width: 22px; height: 22px; }
+
+      /* Bottom toolbar */
+      #bottom-toolbar {
+        display: flex;
+        height: 48px;
+        background: var(--bg-sidebar);
+        border-top: 1px solid var(--border);
+        flex-shrink: 0;
+        align-items: center;
+        justify-content: space-around;
+        padding: 0 4px;
+        z-index: 100;
+      }
+      .bot-btn {
+        flex: 1; height: 44px; border: none; background: transparent;
+        color: var(--text-dim); cursor: pointer;
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        gap: 2px; border-radius: 8px; font-size: 9.5px; font-family: inherit;
+        transition: background .15s, color .15s;
+      }
+      .bot-btn svg { width: 18px; height: 18px; }
+      .bot-btn:active, .bot-btn.active { background: var(--accent-glow); color: var(--accent); }
+
+      .modal { min-width: unset; width: 90vw; padding: 20px; }
+      #statusbar { font-size: 10.5px; padding: 0 8px; gap: 8px; }
+    }
+  </style>
+</head>
+<body>
+
+<div id="app">
+
+  <!-- HEADER -->
+  <div id="header">
+    <!-- Hamburger: toggles file drawer -->
+    <button id="btn-hamburger" title="Files (Ctrl+B)">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="3" y1="6" x2="21" y2="6"/>
+        <line x1="3" y1="12" x2="21" y2="12"/>
+        <line x1="3" y1="18" x2="21" y2="18"/>
+      </svg>
+    </button>
+    <!-- Active file name -->
+    <span id="header-filename">Genesis Monaco Editor</span>
+    <!-- Actions -->
+    <div class="header-actions">
+      <button class="icon-btn" id="btn-new-file" title="New File (Ctrl+N)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+      </button>
+      <button class="icon-btn" id="btn-save" title="Save (Ctrl+S)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+      </button>
+      <button class="icon-btn" id="btn-theme" title="Toggle Theme">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <div id="main">
+
+    <!-- Sidebar backdrop (mobile) -->
+    <div id="sidebar-backdrop"></div>
+
+    <!-- Sidebar -->
+    <div id="sidebar" class="collapsed">
+      <!-- Explorer panel -->
+      <!-- Sidebar tab switcher -->
+      <div id="sidebar-tabs">
+        <button class="stab active" id="stab-files">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+          Files
+        </button>
+        <button class="stab" id="stab-search">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          Search
+        </button>
+        <div style="flex:1"></div>
+        <button class="icon-btn" id="btn-open-folder" title="Open Folder" style="width:26px;height:26px;">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg>
+        </button>
+        <button class="icon-btn" id="btn-new-file-tree" title="New File" style="width:26px;height:26px;">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+        </button>
+        <button class="icon-btn" id="btn-new-folder-tree" title="New Folder" style="width:26px;height:26px;">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+        </button>
+      </div>
+
+      <div id="panel-explorer" style="display:flex;flex-direction:column;flex:1;overflow:hidden;">
+        <div id="file-tree"></div>
+      </div>
+
+      <!-- Search panel -->
+      <div id="panel-search" style="display:none;flex-direction:column;flex:1;overflow:hidden;">
+        <div id="search-panel" class="open" style="display:flex">
+          <input type="text" id="search-input" placeholder="Search in all files…" />
+          <div id="search-results"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Resizer -->
+    <div id="resizer"></div>
+
+    <!-- Editor area -->
+    <div id="editor-area">
+      <div id="tabs-bar"></div>
+      <div id="editor-body" style="flex:1;display:flex;flex-direction:column;overflow:hidden;">
+        <div id="welcome">
+          <svg class="wlc-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+          <h2>Genesis Monaco Editor</h2>
+          <p>Open a folder from your device to start editing, or create a new file.</p>
+          <div class="wlc-actions">
+            <button class="btn-primary" id="btn-wlc-folder">Open Folder</button>
+            <button class="btn-secondary" id="btn-wlc-file">New File</button>
+          </div>
+        </div>
+        <div id="monaco-container" style="display:none;flex:1;"></div>
+      </div>
+    </div>
+
+  </div><!-- /main -->
+
+  <!-- BOTTOM TOOLBAR (mobile only) -->
+  <div id="bottom-toolbar">
+    <button class="bot-btn active" id="bot-files">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+      Files
+    </button>
+    <button class="bot-btn" id="bot-search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      Search
+    </button>
+    <button class="bot-btn" id="bot-new">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+      New
+    </button>
+    <button class="bot-btn" id="bot-save">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+      Save
+    </button>
+    <button class="bot-btn" id="bot-folder">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg>
+      Open
+    </button>
+  </div>
+
+  <!-- STATUS BAR -->
+  <div id="statusbar">
+    <div class="status-item" id="status-lang">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+      <span id="status-lang-text">—</span>
+    </div>
+    <div class="status-right">
+      <div class="status-item" id="status-pos"><span id="status-pos-text">Ln 1, Col 1</span></div>
+      <div class="status-item"><span id="status-enc">UTF-8</span></div>
+      <div class="status-item"><span id="status-eol">LF</span></div>
+    </div>
+  </div>
+
+</div><!-- /app -->
+
+<!-- MODALS -->
+<div class="modal-overlay" id="modal-new">
+  <div class="modal">
+    <h3 id="modal-new-title">New File</h3>
+    <input type="text" id="modal-new-input" placeholder="filename.js" autocomplete="off" spellcheck="false" />
+    <div class="modal-actions">
+      <button class="btn-secondary" id="modal-new-cancel">Cancel</button>
+      <button class="btn-primary" id="modal-new-ok">Create</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-rename">
+  <div class="modal">
+    <h3>Rename</h3>
+    <input type="text" id="modal-rename-input" autocomplete="off" spellcheck="false" />
+    <div class="modal-actions">
+      <button class="btn-secondary" id="modal-rename-cancel">Cancel</button>
+      <button class="btn-primary" id="modal-rename-ok">Rename</button>
+    </div>
+  </div>
+</div>
+
+<!-- CONTEXT MENU -->
+<div class="ctx-menu" id="ctx-menu" style="display:none;">
+  <div class="ctx-item" id="ctx-open">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+    Open
+  </div>
+  <div class="ctx-item" id="ctx-rename">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+    Rename
+  </div>
+  <div class="ctx-divider"></div>
+  <div class="ctx-item danger" id="ctx-delete">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+    Delete
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast-container"></div>
+
+<!-- PWA Service Worker registration -->
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').catch(() => {});
+  });
+}
+</script>
+
+<script>
+// ════════════════════════════════════════════════════
+//  STATE
+// ════════════════════════════════════════════════════
+const state = {
+  fsRoot: null,          // FileSystemDirectoryHandle
+  tree: {},              // path → { handle, type, children? }
+  tabs: [],              // [{ id, name, path, content, modified, language, handle? }]
+  activeTab: null,
+  darkTheme: true,
+  sidebarVisible: true,
+  currentPanel: 'explorer', // 'explorer' | 'search'
+};
+
+// ════════════════════════════════════════════════════
+//  MONACO SETUP
+// ════════════════════════════════════════════════════
+let monacoEditor = null;
+let monacoReady = false;
+
+require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs' } });
+require(['vs/editor/editor.main'], function(monaco) {
+  const isMobile = window.innerWidth <= 768;
+  monacoEditor = monaco.editor.create(document.getElementById('monaco-container'), {
+    value: '',
+    language: 'javascript',
+    theme: 'vs-dark',
+    fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+    fontSize: isMobile ? 14 : 13.5,
+    lineHeight: isMobile ? 24 : 22,
+    minimap: { enabled: false },
+    scrollBeyondLastLine: false,
+    automaticLayout: true,
+    tabSize: 2,
+    wordWrap: 'off',
+    scrollbar: {
+      horizontal: 'auto',
+      vertical: 'auto',
+      horizontalScrollbarSize: isMobile ? 10 : 6,
+      verticalScrollbarSize: isMobile ? 10 : 6,
+    },
+    smoothScrolling: true,
+    cursorBlinking: 'smooth',
+    cursorSmoothCaretAnimation: 'on',
+    bracketPairColorization: { enabled: true },
+    guides: {
+      indentation: !isMobile,
+      bracketPairs: !isMobile,
+    },
+    renderWhitespace: 'none',
+    folding: !isMobile,
+    lineDecorationsWidth: isMobile ? 4 : 10,
+    lineNumbersMinChars: isMobile ? 3 : 4,
+    padding: { top: 10, bottom: 40 },
+  });
+
+  // Track cursor position
+  monacoEditor.onDidChangeCursorPosition(e => {
+    document.getElementById('status-pos-text').textContent =
+      `Ln ${e.position.lineNumber}, Col ${e.position.column}`;
+  });
+
+  // Track content changes
+  monacoEditor.onDidChangeModelContent(() => {
+    if (state.activeTab) {
+      const tab = state.tabs.find(t => t.id === state.activeTab);
+      if (tab && !tab.modified) {
+        tab.modified = true;
+        renderTabs();
+      }
+    }
+  });
+
+  monacoReady = true;
+  showToast('Monaco Editor ready', 'success');
+});
+
+// ════════════════════════════════════════════════════
+//  FILE SYSTEM ACCESS API
+// ════════════════════════════════════════════════════
+async function openFolder() {
+  if (!window.showDirectoryPicker) {
+    showToast('File System Access API not supported. Use Chrome/Edge.', 'error'); return;
+  }
+  try {
+    state.fsRoot = await window.showDirectoryPicker({ mode: 'readwrite' });
+    await buildTree(state.fsRoot, '');
+    renderTree();
+    showToast(`Opened: ${state.fsRoot.name}`, 'success');
+  } catch(e) { if (e.name !== 'AbortError') showToast('Could not open folder', 'error'); }
+}
+
+async function buildTree(dirHandle, path) {
+  const children = {};
+  for await (const [name, handle] of dirHandle.entries()) {
+    if (name.startsWith('.')) continue;
+    const p = path ? `${path}/${name}` : name;
+    if (handle.kind === 'directory') {
+      children[p] = { handle, type: 'dir', children: null, expanded: false, name };
+    } else {
+      children[p] = { handle, type: 'file', name };
+    }
+  }
+  if (path === '') {
+    state.tree = children;
+  } else {
+    state.tree[path].children = children;
+  }
+  return children;
+}
+
+async function expandDir(path) {
+  const node = state.tree[path];
+  if (!node || node.type !== 'dir') return;
+  if (!node.children) await buildTree(node.handle, path);
+  node.expanded = !node.expanded;
+  renderTree();
+}
+
+async function readFile(handle) {
+  const file = await handle.getFile();
+  return await file.text();
+}
+
+async function writeFile(handle, content) {
+  const writable = await handle.createWritable();
+  await writable.write(content);
+  await writable.close();
+}
+
+async function openFile(path) {
+  const node = state.tree[path];
+  if (!node || node.type !== 'file') return;
+
+  // Already open?
+  const existing = state.tabs.find(t => t.path === path);
+  if (existing) { activateTab(existing.id); return; }
+
+  try {
+    let content = '';
+    if (node.handle) {
+      content = await readFile(node.handle);
+    }
+    const lang = detectLanguage(node.name);
+    const tab = { id: Date.now() + Math.random(), name: node.name, path, content, modified: false, language: lang, handle: node.handle };
+    state.tabs.push(tab);
+    activateTab(tab.id);
+    renderTabs();
+    showToast(`Opened ${node.name}`, 'info');
+    closeSidebarOnMobile(); // auto-hide sidebar after opening file
+  } catch(e) { showToast('Cannot read file', 'error'); }
+}
+
+async function saveActive() {
+  if (!state.activeTab) return;
+  const tab = state.tabs.find(t => t.id === state.activeTab);
+  if (!tab) return;
+  const content = monacoEditor.getValue();
+  tab.content = content;
+  if (tab.handle) {
+    try {
+      await writeFile(tab.handle, content);
+      tab.modified = false;
+      renderTabs();
+      showToast(`Saved ${tab.name}`, 'success');
+    } catch(e) { showToast('Save failed', 'error'); }
+  } else {
+    // No FS handle → try Save As
+    if (window.showSaveFilePicker) {
+      try {
+        const h = await window.showSaveFilePicker({ suggestedName: tab.name });
+        tab.handle = h;
+        await writeFile(h, content);
+        tab.modified = false;
+        renderTabs();
+        showToast(`Saved ${tab.name}`, 'success');
+      } catch(e) {}
+    } else {
+      // Fallback: download
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([content], { type: 'text/plain' }));
+      a.download = tab.name; a.click();
+      tab.modified = false; renderTabs();
+      showToast(`Downloaded ${tab.name}`, 'success');
+    }
+  }
+}
+
+// ════════════════════════════════════════════════════
+//  VIRTUAL FILE SYSTEM (when no FS access)
+// ════════════════════════════════════════════════════
+function createVirtualFile(name, parentPath = '') {
+  const path = parentPath ? `${parentPath}/${name}` : name;
+  state.tree[path] = { handle: null, type: 'file', name };
+  const lang = detectLanguage(name);
+  const tab = { id: Date.now() + Math.random(), name, path, content: '', modified: false, language: lang, handle: null };
+  state.tabs.push(tab);
+  activateTab(tab.id);
+  renderTree(); renderTabs();
+}
+
+// ════════════════════════════════════════════════════
+//  TABS
+// ════════════════════════════════════════════════════
+function activateTab(id) {
+  // Save current content
+  if (state.activeTab && monacoReady) {
+    const cur = state.tabs.find(t => t.id === state.activeTab);
+    if (cur) cur.content = monacoEditor.getValue();
+  }
+  state.activeTab = id;
+  const tab = state.tabs.find(t => t.id === id);
+  if (!tab) return;
+
+  if (monacoReady) {
+    // Set model
+    const uri = window.monaco ? window.monaco.Uri.parse(`file:///${tab.path}`) : null;
+    let model = uri ? window.monaco?.editor.getModel(uri) : null;
+    if (!model && window.monaco) {
+      model = window.monaco.editor.createModel(tab.content, tab.language, uri);
+    } else if (model) {
+      if (model.getValue() !== tab.content) model.setValue(tab.content);
+    }
+    if (model) monacoEditor.setModel(model);
+    updateLanguageStatus(tab.language);
+  }
+
+  document.getElementById('welcome').style.display = 'none';
+  document.getElementById('monaco-container').style.display = 'block';
+  document.getElementById('header-filename').textContent = tab.name;
+  renderTabs();
+  highlightActiveFile(tab.path);
+}
+
+function closeTab(id, e) {
+  if (e) e.stopPropagation();
+  const idx = state.tabs.findIndex(t => t.id === id);
+  if (idx === -1) return;
+  const tab = state.tabs[idx];
+  if (tab.modified && !confirm(`${tab.name} has unsaved changes. Close anyway?`)) return;
+
+  // Dispose model
+  if (window.monaco) {
+    const uri = window.monaco.Uri.parse(`file:///${tab.path}`);
+    const model = window.monaco.editor.getModel(uri);
+    if (model) model.dispose();
+  }
+
+  state.tabs.splice(idx, 1);
+  if (state.activeTab === id) {
+    state.activeTab = null;
+    const next = state.tabs[Math.min(idx, state.tabs.length - 1)];
+    if (next) activateTab(next.id);
+    else {
+      document.getElementById('welcome').style.display = 'flex';
+      document.getElementById('monaco-container').style.display = 'none';
+    }
+  }
+  renderTabs();
+}
+
+function renderTabs() {
+  const bar = document.getElementById('tabs-bar');
+  bar.innerHTML = '';
+  state.tabs.forEach(tab => {
+    const el = document.createElement('div');
+    el.className = 'tab' + (tab.id === state.activeTab ? ' active' : '') + (tab.modified ? ' modified' : '');
+    el.innerHTML = `
+      <span class="tab-icon">${fileIcon(tab.name)}</span>
+      <span class="tab-name" title="${tab.path}">${tab.name}</span>
+      <button class="tab-close" title="Close">&times;</button>
+    `;
+    el.addEventListener('click', () => activateTab(tab.id));
+    el.querySelector('.tab-close').addEventListener('click', (e) => closeTab(tab.id, e));
+    bar.appendChild(el);
+  });
+}
+
+// ════════════════════════════════════════════════════
+//  FILE TREE RENDER
+// ════════════════════════════════════════════════════
+function renderTree() {
+  const container = document.getElementById('file-tree');
+  container.innerHTML = '';
+
+  if (Object.keys(state.tree).length === 0) {
+    container.innerHTML = `<div style="padding:16px 12px;color:var(--text-dim);font-size:12px;text-align:center;line-height:1.6;">
+      No folder open.<br>Click the folder icon to open.
+    </div>`;
+    return;
+  }
+
+  renderLevel(state.tree, container, 0);
+}
+
+function renderLevel(nodes, container, depth) {
+  const sorted = Object.entries(nodes).sort(([,a],[,b]) => {
+    if (a.type !== b.type) return a.type === 'dir' ? -1 : 1;
+    return a.name.localeCompare(b.name);
+  });
+
+  for (const [path, node] of sorted) {
+    const el = document.createElement('div');
+    el.className = 'tree-item' + (node.type === 'dir' ? ' folder' : '') + (node.expanded ? ' open' : '');
+    el.style.setProperty('--depth', depth);
+    el.dataset.path = path;
+    el.dataset.type = node.type;
+
+    el.innerHTML = node.type === 'dir'
+      ? `<svg class="tree-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+         <svg class="tree-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+         <span class="tree-name">${node.name}</span>`
+      : `<span style="width:12px;display:inline-block;"></span>
+         <span class="tree-icon" style="font-size:13px;">${fileIcon(node.name)}</span>
+         <span class="tree-name">${node.name}</span>`;
+
+    el.addEventListener('click', async () => {
+      if (node.type === 'dir') {
+        await expandDir(path);
+      } else {
+        await openFile(path);
+      }
+    });
+
+    el.addEventListener('contextmenu', e => showCtxMenu(e, path, node));
+    container.appendChild(el);
+
+    if (node.type === 'dir' && node.expanded && node.children) {
+      const childContainer = document.createElement('div');
+      childContainer.className = 'tree-children';
+      container.appendChild(childContainer);
+      renderLevel(node.children, childContainer, depth + 1);
+    }
+  }
+}
+
+function highlightActiveFile(path) {
+  document.querySelectorAll('.tree-item').forEach(el => {
+    el.classList.toggle('active', el.dataset.path === path);
+  });
+}
+
+// ════════════════════════════════════════════════════
+//  CONTEXT MENU
+// ════════════════════════════════════════════════════
+let ctxTarget = null;
+function showCtxMenu(e, path, node) {
+  e.preventDefault();
+  ctxTarget = { path, node };
+  const menu = document.getElementById('ctx-menu');
+  menu.style.display = 'block';
+  menu.style.left = Math.min(e.clientX, window.innerWidth - 180) + 'px';
+  menu.style.top = Math.min(e.clientY, window.innerHeight - 120) + 'px';
+  document.getElementById('ctx-open').style.display = node.type === 'file' ? '' : 'none';
+}
+
+document.addEventListener('click', () => { document.getElementById('ctx-menu').style.display = 'none'; });
+
+document.getElementById('ctx-open').addEventListener('click', () => {
+  if (ctxTarget) openFile(ctxTarget.path);
+});
+
+document.getElementById('ctx-rename').addEventListener('click', () => {
+  if (!ctxTarget) return;
+  document.getElementById('modal-rename-input').value = ctxTarget.node.name;
+  openModal('modal-rename');
+});
+
+document.getElementById('ctx-delete').addEventListener('click', () => {
+  if (!ctxTarget) return;
+  if (!confirm(`Delete "${ctxTarget.node.name}"?`)) return;
+  // Close tab if open
+  const tab = state.tabs.find(t => t.path === ctxTarget.path);
+  if (tab) closeTab(tab.id);
+  delete state.tree[ctxTarget.path];
+  renderTree();
+  showToast(`Deleted ${ctxTarget.node.name}`, 'info');
+});
+
+// ════════════════════════════════════════════════════
+//  MODALS
+// ════════════════════════════════════════════════════
+let modalNewMode = 'file'; // 'file' | 'folder'
+function openModal(id) {
+  document.getElementById(id).classList.add('open');
+  document.getElementById(id).querySelector('input')?.focus();
+}
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+document.getElementById('modal-new-cancel').addEventListener('click', () => closeModal('modal-new'));
+document.getElementById('modal-rename-cancel').addEventListener('click', () => closeModal('modal-rename'));
+
+document.getElementById('modal-new-ok').addEventListener('click', () => {
+  const name = document.getElementById('modal-new-input').value.trim();
+  if (!name) return;
+  if (modalNewMode === 'file') createVirtualFile(name);
+  else {
+    state.tree[name] = { handle: null, type: 'dir', name, children: {}, expanded: false };
+    renderTree();
+  }
+  closeModal('modal-new');
+});
+
+document.getElementById('modal-rename-ok').addEventListener('click', () => {
+  const newName = document.getElementById('modal-rename-input').value.trim();
+  if (!newName || !ctxTarget) return;
+  const node = state.tree[ctxTarget.path];
+  if (!node) return;
+  const newPath = ctxTarget.path.replace(/[^/]+$/, newName);
+  state.tree[newPath] = { ...node, name: newName };
+  delete state.tree[ctxTarget.path];
+  // Update tab
+  const tab = state.tabs.find(t => t.path === ctxTarget.path);
+  if (tab) { tab.path = newPath; tab.name = newName; tab.language = detectLanguage(newName); renderTabs(); }
+  renderTree();
+  closeModal('modal-rename');
+});
+
+// Close on overlay click
+['modal-new','modal-rename'].forEach(id => {
+  document.getElementById(id).addEventListener('click', e => {
+    if (e.target.id === id) closeModal(id);
+  });
+});
+
+// Enter key in modals
+['modal-new-input','modal-rename-input'].forEach(id => {
+  document.getElementById(id).addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById(id.replace('input','ok')).click();
+    if (e.key === 'Escape') closeModal(id.includes('new') ? 'modal-new' : 'modal-rename');
+  });
+});
+
+// ════════════════════════════════════════════════════
+//  SEARCH
+// ════════════════════════════════════════════════════
+let searchDebounce;
+document.getElementById('search-input').addEventListener('input', e => {
+  clearTimeout(searchDebounce);
+  searchDebounce = setTimeout(() => doSearch(e.target.value), 300);
+});
+
+function doSearch(query) {
+  const results = document.getElementById('search-results');
+  results.innerHTML = '';
+  if (!query.trim()) return;
+  const q = query.toLowerCase();
+  let count = 0;
+  state.tabs.forEach(tab => {
+    const lines = tab.content.split('\n');
+    lines.forEach((line, i) => {
+      if (line.toLowerCase().includes(q) && count < 50) {
+        count++;
+        const idx = line.toLowerCase().indexOf(q);
+        const before = escHtml(line.substring(0, idx));
+        const match = escHtml(line.substring(idx, idx + q.length));
+        const after = escHtml(line.substring(idx + q.length));
+        const el = document.createElement('div');
+        el.className = 'search-result';
+        el.innerHTML = `<div class="sr-file">${tab.name}:${i+1}</div>
+          <div class="sr-line">${before}<span class="sr-match">${match}</span>${after}</div>`;
+        el.addEventListener('click', () => {
+          activateTab(tab.id);
+          if (monacoReady) {
+            monacoEditor.revealLineInCenter(i + 1);
+            monacoEditor.setPosition({ lineNumber: i + 1, column: idx + 1 });
+            monacoEditor.focus();
+          }
+        });
+        results.appendChild(el);
+      }
+    });
+  });
+  if (count === 0) results.innerHTML = `<div style="padding:12px;color:var(--text-dim);font-size:12px;">No results found</div>`;
+}
+
+// ════════════════════════════════════════════════════
+//  THEME
+// ════════════════════════════════════════════════════
+function toggleTheme() {
+  state.darkTheme = !state.darkTheme;
+  if (monacoReady) {
+    window.monaco?.editor.setTheme(state.darkTheme ? 'vs-dark' : 'vs');
+  }
+  document.documentElement.style.setProperty('--bg-base', state.darkTheme ? '#0f0f17' : '#f5f5fa');
+  document.documentElement.style.setProperty('--bg-sidebar', state.darkTheme ? '#15151f' : '#ebebf5');
+  document.documentElement.style.setProperty('--bg-tabs', state.darkTheme ? '#11111a' : '#e0e0ee');
+  document.documentElement.style.setProperty('--bg-editor', state.darkTheme ? '#0d0d14' : '#ffffff');
+  document.documentElement.style.setProperty('--bg-hover', state.darkTheme ? '#1e1e2e' : '#d8d8ee');
+  document.documentElement.style.setProperty('--bg-active', state.darkTheme ? '#252535' : '#ccccee');
+  document.documentElement.style.setProperty('--text-primary', state.darkTheme ? '#e2e2f0' : '#1a1a2e');
+  document.documentElement.style.setProperty('--text-secondary', state.darkTheme ? '#8888aa' : '#555570');
+  document.documentElement.style.setProperty('--text-dim', state.darkTheme ? '#55556a' : '#9999aa');
+  document.documentElement.style.setProperty('--border', state.darkTheme ? '#1e1e2e' : '#d0d0e8');
+  document.documentElement.style.setProperty('--border-light', state.darkTheme ? '#252540' : '#c0c0de');
+  document.documentElement.style.setProperty('--tab-active-bg', state.darkTheme ? '#0d0d14' : '#ffffff');
+  showToast(state.darkTheme ? 'Dark theme' : 'Light theme', 'info');
+}
+
+// ════════════════════════════════════════════════════
+//  SIDEBAR / ACTIVITY BAR
+// ════════════════════════════════════════════════════
+const isMobileLayout = () => window.innerWidth <= 768;
+
+function switchPanel(panel) {
+  state.currentPanel = panel;
+  document.getElementById('panel-explorer').style.display = panel === 'explorer' ? 'flex' : 'none';
+  document.getElementById('panel-search').style.display = panel === 'search' ? 'flex' : 'none';
+  document.getElementById('stab-files').classList.toggle('active', panel === 'explorer');
+  document.getElementById('stab-search').classList.toggle('active', panel === 'search');
+  const botFiles = document.getElementById('bot-files');
+  const botSearch = document.getElementById('bot-search');
+  if (botFiles) botFiles.classList.toggle('active', panel === 'explorer');
+  if (botSearch) botSearch.classList.toggle('active', panel === 'search');
+  if (!state.sidebarVisible) toggleSidebar(true);
+}
+
+function toggleSidebar(forceOpen) {
+  if (forceOpen === true) state.sidebarVisible = false;
+  state.sidebarVisible = !state.sidebarVisible;
+  document.getElementById('sidebar').classList.toggle('collapsed', !state.sidebarVisible);
+  // Mobile: show/hide backdrop
+  if (isMobileLayout()) {
+    document.getElementById('sidebar-backdrop').classList.toggle('visible', state.sidebarVisible);
+  }
+}
+
+function closeSidebarOnMobile() {
+  if (isMobileLayout() && state.sidebarVisible) toggleSidebar();
+}
+
+// Backdrop tap closes sidebar
+document.getElementById('sidebar-backdrop').addEventListener('click', () => closeSidebarOnMobile());
+
+// Hamburger toggles sidebar
+document.getElementById('btn-hamburger').addEventListener('click', () => {
+  toggleSidebar();
+  document.getElementById('btn-hamburger').classList.toggle('active', state.sidebarVisible);
+});
+
+// Sidebar internal tabs
+document.getElementById('stab-files').addEventListener('click', () => switchPanel('explorer'));
+document.getElementById('stab-search').addEventListener('click', () => switchPanel('search'));
+
+// Bottom toolbar (mobile)
+const botFiles = document.getElementById('bot-files');
+const botSearch = document.getElementById('bot-search');
+const botNew = document.getElementById('bot-new');
+const botSave = document.getElementById('bot-save');
+const botFolder = document.getElementById('bot-folder');
+if (botFiles) botFiles.addEventListener('click', () => {
+  if (state.currentPanel === 'explorer' && state.sidebarVisible) toggleSidebar();
+  else { switchPanel('explorer'); if (!state.sidebarVisible) toggleSidebar(); }
+});
+if (botSearch) botSearch.addEventListener('click', () => {
+  if (state.currentPanel === 'search' && state.sidebarVisible) toggleSidebar();
+  else { switchPanel('search'); if (!state.sidebarVisible) toggleSidebar(); }
+});
+if (botNew) botNew.addEventListener('click', () => showNewFileModal('file'));
+if (botSave) botSave.addEventListener('click', saveActive);
+if (botFolder) botFolder.addEventListener('click', openFolder);
+
+// ════════════════════════════════════════════════════
+//  RESIZER
+// ════════════════════════════════════════════════════
+const resizer = document.getElementById('resizer');
+let resizerDragging = false;
+resizer.addEventListener('mousedown', e => { resizerDragging = true; resizer.classList.add('dragging'); e.preventDefault(); });
+document.addEventListener('mousemove', e => {
+  if (!resizerDragging) return;
+  const sidebar = document.getElementById('sidebar');
+  const rect = document.getElementById('main').getBoundingClientRect();
+  const newW = Math.max(150, Math.min(500, e.clientX - rect.left - 44));
+  sidebar.style.width = newW + 'px';
+  document.documentElement.style.setProperty('--sidebar-w', newW + 'px');
+});
+document.addEventListener('mouseup', () => { resizerDragging = false; resizer.classList.remove('dragging'); });
+
+// ════════════════════════════════════════════════════
+//  DRAG AND DROP FOLDER/FILE
+// ════════════════════════════════════════════════════
+const app = document.getElementById('app');
+app.addEventListener('dragover', e => { e.preventDefault(); app.classList.add('drag-over'); });
+app.addEventListener('dragleave', e => { if (!app.contains(e.relatedTarget)) app.classList.remove('drag-over'); });
+app.addEventListener('drop', async e => {
+  e.preventDefault();
+  app.classList.remove('drag-over');
+  const items = [...e.dataTransfer.items];
+  for (const item of items) {
+    if (item.kind === 'file') {
+      const file = item.getAsFile();
+      const content = await file.text();
+      const path = file.name;
+      state.tree[path] = { handle: null, type: 'file', name: file.name };
+      const lang = detectLanguage(file.name);
+      const tab = { id: Date.now() + Math.random(), name: file.name, path, content, modified: false, language: lang, handle: null };
+      state.tabs.push(tab);
+      activateTab(tab.id);
+    }
+  }
+  renderTree(); renderTabs();
+});
+
+// ════════════════════════════════════════════════════
+//  KEYBOARD SHORTCUTS
+// ════════════════════════════════════════════════════
+document.addEventListener('keydown', e => {
+  if (e.ctrlKey || e.metaKey) {
+    if (e.key === 's') { e.preventDefault(); saveActive(); }
+    if (e.key === 'n') { e.preventDefault(); showNewFileModal(); }
+    if (e.key === 'b') { e.preventDefault(); toggleSidebar(); }
+    if (e.key === 'w') { e.preventDefault(); if (state.activeTab) closeTab(state.activeTab); }
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      const idx = state.tabs.findIndex(t => t.id === state.activeTab);
+      if (idx !== -1) {
+        const next = state.tabs[(idx + (e.shiftKey ? -1 : 1) + state.tabs.length) % state.tabs.length];
+        if (next) activateTab(next.id);
+      }
+    }
+  }
+});
+
+// ════════════════════════════════════════════════════
+//  UTILITIES
+// ════════════════════════════════════════════════════
+function showNewFileModal(mode = 'file') {
+  modalNewMode = mode;
+  document.getElementById('modal-new-title').textContent = mode === 'file' ? 'New File' : 'New Folder';
+  document.getElementById('modal-new-input').value = '';
+  document.getElementById('modal-new-input').placeholder = mode === 'file' ? 'filename.js' : 'folder-name';
+  openModal('modal-new');
+}
+
+function updateLanguageStatus(lang) {
+  document.getElementById('status-lang-text').textContent = lang || '—';
+}
+
+function detectLanguage(filename) {
+  const ext = filename.split('.').pop().toLowerCase();
+  const map = {
+    js: 'javascript', ts: 'typescript', jsx: 'javascript', tsx: 'typescript',
+    html: 'html', htm: 'html', css: 'css', scss: 'scss', less: 'less',
+    json: 'json', md: 'markdown', py: 'python', rb: 'ruby',
+    java: 'java', c: 'c', cpp: 'cpp', cs: 'csharp',
+    go: 'go', rs: 'rust', php: 'php', sh: 'shell', bash: 'shell',
+    yaml: 'yaml', yml: 'yaml', xml: 'xml', sql: 'sql',
+    vue: 'html', svelte: 'html', kt: 'kotlin', swift: 'swift',
+    dart: 'dart', r: 'r', lua: 'lua',
+  };
+  return map[ext] || 'plaintext';
+}
+
+function fileIcon(name) {
+  const ext = name.split('.').pop().toLowerCase();
+  const icons = {
+    js: '🟨', ts: '🔷', jsx: '⚛️', tsx: '⚛️', html: '🌐', css: '🎨',
+    scss: '🎨', json: '📋', md: '📝', py: '🐍', rb: '💎', java: '☕',
+    go: '🐹', rs: '🦀', php: '🐘', sh: '💻', yaml: '⚙️', yml: '⚙️',
+    xml: '📄', sql: '🗃️', vue: '💚', svg: '🖼️', png: '🖼️', jpg: '🖼️',
+    jpeg: '🖼️', gif: '🖼️', pdf: '📄', zip: '📦', txt: '📄',
+  };
+  return icons[ext] || '📄';
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+let toastTimer;
+function showToast(msg, type = 'info') {
+  const c = document.getElementById('toast-container');
+  const t = document.createElement('div');
+  t.className = `toast ${type}`;
+  t.textContent = msg;
+  c.appendChild(t);
+  requestAnimationFrame(() => t.classList.add('show'));
+  setTimeout(() => {
+    t.classList.remove('show');
+    setTimeout(() => t.remove(), 250);
+  }, 2500);
+}
+
+// ════════════════════════════════════════════════════
+//  BUTTON WIRING
+// ════════════════════════════════════════════════════
+document.getElementById('btn-open-folder').addEventListener('click', openFolder);
+document.getElementById('btn-wlc-folder').addEventListener('click', openFolder);
+// btn-open-folder also in sidebar header
+document.getElementById('btn-new-file').addEventListener('click', () => showNewFileModal('file'));
+document.getElementById('btn-wlc-file').addEventListener('click', () => showNewFileModal('file'));
+document.getElementById('btn-new-file-tree').addEventListener('click', () => showNewFileModal('file'));
+document.getElementById('btn-new-folder-tree').addEventListener('click', () => showNewFileModal('folder'));
+document.getElementById('btn-save').addEventListener('click', saveActive);
+document.getElementById('btn-theme').addEventListener('click', toggleTheme);
+document.getElementById('status-lang').addEventListener('click', () => {
+  if (!state.activeTab || !monacoReady) return;
+  const lang = prompt('Enter language (javascript, typescript, html, css, python…):');
+  if (lang) {
+    const tab = state.tabs.find(t => t.id === state.activeTab);
+    if (tab) { tab.language = lang; }
+    window.monaco?.editor.setModelLanguage(monacoEditor.getModel(), lang);
+    updateLanguageStatus(lang);
+  }
+});
+
+// Init
+renderTree();
+</script>
+</body>
+</html>
